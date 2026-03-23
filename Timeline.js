@@ -4,8 +4,8 @@ class TimelineApp {
         this.timelines = [];
         this.activeTimelines = new Set();
         this.currentZoom = 1;
-        this.minYear = 1453;
-        this.maxYear = 18906416;
+        this.minYear = 0;
+        this.maxYear = 10000;
         this.viewStart = 1453;
         this.viewEnd = 2020;
         this.selectedEvent = null;
@@ -33,6 +33,13 @@ class TimelineApp {
         // 默认激活三体时间轴
         const threeBody = this.timelines.find(t => t.id === 'three-body');
         if (threeBody) {
+            // 调整视域
+            threeBody.events.forEach(e => {
+                if (e.year < this.viewStart) this.viewStart = e.year;
+                if (e.year > this.viewEnd) this.viewEnd = e.year;
+                //TODO: 加Padding
+            });
+            // 显示时间轴
             this.toggleTimeline(threeBody.id);
         }
     }
@@ -241,6 +248,10 @@ class TimelineApp {
         this.render();
     }
 
+
+    /**
+     * 绘制所有时间轴
+     */
     render() {
         const ctx = this.ctx;
         const width = this.canvas.width;
@@ -266,6 +277,9 @@ class TimelineApp {
 
         // 绘制时间刻度
         this.renderTimeScale(ctx, width, height);
+        // 更新范围选择器
+        this.updateMinMaxFromActiveTimelines();
+        this.updateRangeSlider();
     }
 
     renderTimelineTrack(ctx, timeline, trackIndex, trackHeight, width) {
@@ -361,6 +375,39 @@ class TimelineApp {
         ctx.textAlign = 'left';
     }
 
+    /**
+     * 更新Min year与Max year
+     */
+    updateMinMaxFromActiveTimelines() {
+        if (this.activeTimelines.size === 0) return;
+
+        let min = Infinity;
+        let max = -Infinity;
+
+        this.timelines
+            .filter(t => this.activeTimelines.has(t.id))
+            .forEach(t => {
+                t.events.forEach(e => {
+                    if (e.year < min) min = e.year;
+                    if (e.year > max) max = e.year;
+                });
+            });
+
+        // 添加10%边距
+        const padding = (max - min) * 0.1;
+        this.minYear = Math.floor(min - padding);
+        this.maxYear = Math.ceil(max + padding);
+
+        // 确保视图范围在值域内
+        this.viewStart = Math.max(this.minYear, this.viewStart);
+        this.viewEnd = Math.min(this.maxYear, this.viewEnd);
+    }
+
+    /**
+     * 计算当前缩放下竖线的间距
+     * @param {Number} span 总年份
+     * @returns 间距
+     */
     calculateTimeStep(span) {
         if (span > 10000) return 1000;
         if (span > 5000) return 500;
@@ -463,6 +510,9 @@ class TimelineApp {
         this.render();
     }
 
+    /**
+     * 更新范围选择器
+     */
     updateRangeSlider() {
         const totalSpan = this.maxYear - this.minYear;
         const left = ((this.viewStart - this.minYear) / totalSpan) * 100;
