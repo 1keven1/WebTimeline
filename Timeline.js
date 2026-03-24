@@ -1,4 +1,4 @@
-// 应用程序主类
+'use strict'
 class TimelineApp {
     constructor() {
         this.timelines = [];
@@ -8,11 +8,15 @@ class TimelineApp {
         this.maxYear = 10000;
         this.viewStart = 1453;
         this.viewEnd = 2020;
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.hoveredEvent = null;
         this.selectedEvent = null;
         this.comparisonMode = false;
         this.dragging = false;
         this.lastMouseX = 0;
         this.editingId = null;
+        this.visibleCards = [];
 
         this.canvas = document.getElementById('timelineCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -102,6 +106,12 @@ class TimelineApp {
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
         this.canvas.addEventListener('wheel', (e) => this.handleWheel(e));
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            this.mouseX = e.clientX - rect.left;
+            this.mouseY = e.clientY - rect.top;
+            this.checkHover();
+        });
 
         // 窗口调整
         window.addEventListener('resize', () => {
@@ -115,6 +125,32 @@ class TimelineApp {
             if (e.key === 'ArrowLeft') this.previousEvent();
             if (e.key === 'ArrowRight') this.nextEvent();
         });
+    }
+
+    /**
+     * 检测鼠标悬浮的卡片
+     */
+    checkHover() {
+        let found = null;
+
+        // 遍历所有可见卡片检测悬浮
+        for (const card of this.visibleCards || []) {
+            if (card.containsPoint(this.mouseX, this.mouseY)) {
+                found = {
+                    timeline: card.timeline,
+                    event: card.event,
+                    timelineId: card.timelineId,
+                    x: card.x,
+                    y: card.y
+                };
+                break;  // 找到第一个即停止
+            }
+        }
+
+        if (found !== this.hoveredEvent) {
+            this.hoveredEvent = found;
+            this.render();
+        }
     }
 
     setupRangeSlider() {
@@ -265,6 +301,9 @@ class TimelineApp {
             return;
         }
         document.getElementById('emptyState').style.display = 'none';
+        
+        // 绘制时间刻度
+        this.renderTimeScale(ctx, width, height);
 
         // 计算可见时间轴
         const activeTimelinesData = this.timelines.filter(t => this.activeTimelines.has(t.id));
@@ -275,8 +314,7 @@ class TimelineApp {
             this.renderTimelineTrack(ctx, timeline, index, trackHeight, width);
         });
 
-        // 绘制时间刻度
-        this.renderTimeScale(ctx, width, height);
+
         // 更新范围选择器
         this.updateMinMaxFromActiveTimelines();
         this.updateRangeSlider();
@@ -304,48 +342,30 @@ class TimelineApp {
         ctx.lineTo(width, centerY);
         ctx.stroke();
 
-        // 绘制事件
+        // 清空之前的可见卡片缓存
+        this.visibleCards = [];
+
+        // 使用 EventCard 绘制事件
         const timeSpan = this.viewEnd - this.viewStart;
 
         timeline.events.forEach(event => {
             if (event.year < this.viewStart || event.year > this.viewEnd) return;
 
             const x = ((event.year - this.viewStart) / timeSpan) * width;
-            const isSelected = this.selectedEvent &&
-                this.selectedEvent.timelineId === timeline.id &&
-                this.selectedEvent.event === event;
+            const card = new EventCard(event, timeline, x, centerY);
 
-            // 绘制事件标记
-            ctx.beginPath();
-            ctx.arc(x, centerY, isSelected ? 8 : 6, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
+            // 设置状态
+            card.isSelected = this.selectedEvent?.event === event &&
+                this.selectedEvent?.timelineId === timeline.id;
+            card.isHovered = this.hoveredEvent?.event === event &&
+                this.hoveredEvent?.timelineId === timeline.id;
 
-            if (isSelected) {
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
+            // 绘制
+            card.draw(ctx);
 
-                // 绘制脉冲效果
-                ctx.beginPath();
-                ctx.arc(x, centerY, 12 + Math.sin(Date.now() / 200) * 2, 0, Math.PI * 2);
-                ctx.strokeStyle = color + '40';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            }
-
-            // 绘制事件标题（如果空间足够）
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px sans-serif';
-            const textWidth = ctx.measureText(event.title).width;
-
-            if (textWidth < trackHeight - 20) {
-                ctx.save();
-                ctx.translate(x + 10, centerY - 5);
-                ctx.rotate(-Math.PI / 6);
-                ctx.fillText(event.title, 0, 0);
-                ctx.restore();
-            }
+            // 缓存供点击检测使用
+            card.timelineId = timeline.id;  // 补充 timelineId 用于后续识别
+            this.visibleCards.push(card);
         });
     }
 
@@ -424,27 +444,18 @@ class TimelineApp {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        const activeTimelinesData = this.timelines.filter(t => this.activeTimelines.has(t.id));
-        const trackHeight = this.canvas.height / activeTimelinesData.length;
-        const timeSpan = this.viewEnd - this.viewStart;
-
-        // 查找点击的事件
+        // 使用缓存的卡片检测点击
         let found = null;
-
-        activeTimelinesData.forEach((timeline, index) => {
-            const centerY = index * trackHeight + trackHeight / 2;
-
-            timeline.events.forEach(event => {
-                if (event.year < this.viewStart || event.year > this.viewEnd) return;
-
-                const eventX = ((event.year - this.viewStart) / timeSpan) * this.canvas.width;
-                const dist = Math.sqrt((x - eventX) ** 2 + (y - centerY) ** 2);
-
-                if (dist < 15) {
-                    found = { timeline, event, timelineId: timeline.id };
-                }
-            });
-        });
+        for (const card of this.visibleCards || []) {
+            if (card.containsPoint(x, y)) {
+                found = {
+                    timeline: card.timeline,
+                    event: card.event,
+                    timelineId: card.timelineId
+                };
+                break;
+            }
+        }
 
         if (found) {
             this.selectEvent(found);
