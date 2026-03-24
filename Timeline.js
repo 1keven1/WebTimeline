@@ -12,11 +12,9 @@ class TimelineApp {
         this.mouseY = 0;
         this.hoveredEvent = null;
         this.selectedEvent = null;
-        this.comparisonMode = false;
         this.dragging = false;
         this.lastMouseX = 0;
         this.editingId = null;
-        this.visibleCards = [];
 
         this.canvas = document.getElementById('timelineCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -32,19 +30,13 @@ class TimelineApp {
         this.renderSidebar();
         this.renderCategories();
         this.resizeCanvas();
-        this.render();
 
         // 默认激活三体时间轴
         const threeBody = this.timelines.find(t => t.id === 'three-body');
         if (threeBody) {
-            // 调整视域
-            threeBody.events.forEach(e => {
-                if (e.year < this.viewStart) this.viewStart = e.year;
-                if (e.year > this.viewEnd) this.viewEnd = e.year;
-                //TODO: 加Padding
-            });
-            // 显示时间轴
-            this.toggleTimeline(threeBody.id);
+            this.toggleTimeline(threeBody.id); // 会触发自动适配
+        } else {
+            this.render();
         }
     }
 
@@ -101,16 +93,23 @@ class TimelineApp {
 
     setupEventListeners() {
         // Canvas交互
-        this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+        this.canvas.addEventListener('click', (e) => {
+            // 如果点击目标是DOM卡片，不处理（由卡片自己处理）
+            if (e.target.closest('.event-card')) return;
+
+            // 否则视为点击空白处，取消选择
+            this.selectedEvent = null;
+            this.closeDetail();
+            this.render(); // 会重新渲染DOM，移除active类
+        });
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
-        this.canvas.addEventListener('wheel', (e) => this.handleWheel(e));
+        this.container.addEventListener('wheel', (e) => this.handleWheel(e));
         this.canvas.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
             this.mouseX = e.clientX - rect.left;
             this.mouseY = e.clientY - rect.top;
-            this.checkHover();
         });
 
         // 窗口调整
@@ -125,32 +124,6 @@ class TimelineApp {
             if (e.key === 'ArrowLeft') this.previousEvent();
             if (e.key === 'ArrowRight') this.nextEvent();
         });
-    }
-
-    /**
-     * 检测鼠标悬浮的卡片
-     */
-    checkHover() {
-        let found = null;
-
-        // 遍历所有可见卡片检测悬浮
-        for (const card of this.visibleCards || []) {
-            if (card.containsPoint(this.mouseX, this.mouseY)) {
-                found = {
-                    timeline: card.timeline,
-                    event: card.event,
-                    timelineId: card.timelineId,
-                    x: card.x,
-                    y: card.y
-                };
-                break;  // 找到第一个即停止
-            }
-        }
-
-        if (found !== this.hoveredEvent) {
-            this.hoveredEvent = found;
-            this.render();
-        }
     }
 
     setupRangeSlider() {
@@ -258,14 +231,23 @@ class TimelineApp {
         });
     }
 
+    /**
+     * 切换时间轴可视性
+     * @param {String} id 时间轴id
+     */
     toggleTimeline(id) {
-        if (this.activeTimelines.has(id)) {
-            this.activeTimelines.delete(id);
-        } else {
-            this.activeTimelines.add(id);
-        }
+        const wasEmpty = this.activeTimelines.size === 0;
+
+        if (this.activeTimelines.has(id)) this.activeTimelines.delete(id); 
+        else this.activeTimelines.add(id);
         this.renderSidebar();
-        this.render();
+
+        // 如果从空状态变为有内容，自动适配范围（带padding）
+        if (wasEmpty && this.activeTimelines.size > 0) {
+            this.resetView();
+        } else {
+            this.render();
+        }
     }
 
     filterCategory(category) {
@@ -286,22 +268,24 @@ class TimelineApp {
 
 
     /**
-     * 绘制所有时间轴
+     * 绘制所有时间轴（Canvas）与事件（DOM）
      */
     render() {
         const ctx = this.ctx;
         const width = this.canvas.width;
         const height = this.canvas.height;
 
-        // 清空画布
+        // 清空Canvas
         ctx.clearRect(0, 0, width, height);
 
         if (this.activeTimelines.size === 0) {
             document.getElementById('emptyState').style.display = 'block';
+            // 清空DOM
+            document.getElementById('eventsOverlay').innerHTML = ''; 
             return;
         }
         document.getElementById('emptyState').style.display = 'none';
-        
+
         // 绘制时间刻度
         this.renderTimeScale(ctx, width, height);
 
@@ -314,6 +298,8 @@ class TimelineApp {
             this.renderTimelineTrack(ctx, timeline, index, trackHeight, width);
         });
 
+        // 渲染DOM事件卡片（虚拟列表）
+        this.renderEventDOMs(activeTimelinesData, trackHeight, width);
 
         // 更新范围选择器
         this.updateMinMaxFromActiveTimelines();
@@ -342,30 +328,28 @@ class TimelineApp {
         ctx.lineTo(width, centerY);
         ctx.stroke();
 
-        // 清空之前的可见卡片缓存
-        this.visibleCards = [];
-
-        // 使用 EventCard 绘制事件
         const timeSpan = this.viewEnd - this.viewStart;
 
+        // 在每个事件位置画时间点标记（小圆点或短竖线）
         timeline.events.forEach(event => {
             if (event.year < this.viewStart || event.year > this.viewEnd) return;
-
             const x = ((event.year - this.viewStart) / timeSpan) * width;
-            const card = new EventCard(event, timeline, x, centerY);
 
-            // 设置状态
-            card.isSelected = this.selectedEvent?.event === event &&
-                this.selectedEvent?.timelineId === timeline.id;
-            card.isHovered = this.hoveredEvent?.event === event &&
-                this.hoveredEvent?.timelineId === timeline.id;
+            // 画小圆点
+            ctx.beginPath();
+            ctx.arc(x, centerY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
 
-            // 绘制
-            card.draw(ctx);
-
-            // 缓存供点击检测使用
-            card.timelineId = timeline.id;  // 补充 timelineId 用于后续识别
-            this.visibleCards.push(card);
+            // 或者画短竖线
+            /*
+            ctx.strokeStyle = timeline.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, centerY - 6);
+            ctx.lineTo(x, centerY + 6);
+            ctx.stroke();
+            */
         });
     }
 
@@ -393,6 +377,63 @@ class TimelineApp {
         }
 
         ctx.textAlign = 'left';
+    }
+
+    renderEventDOMs(activeTimelinesData, trackHeight, width) {
+        const overlay = document.getElementById('eventsOverlay');
+        const timeSpan = this.viewEnd - this.viewStart;
+
+        // 简单方案：全量重建（适合<100个事件）。如果事件多，需要改为差异更新
+        overlay.innerHTML = '';
+
+        activeTimelinesData.forEach((timeline, index) => {
+            const centerY = index * trackHeight + trackHeight / 2;
+
+            timeline.events.forEach(event => {
+                // 虚拟渲染：只创建可视区内的事件（左右各留100px缓冲）
+                const x = ((event.year - this.viewStart) / timeSpan) * width;
+                if (x < -100 || x > width + 100) return;
+
+                const cardEl = document.createElement('div');
+                cardEl.className = 'event-card';
+                cardEl.style.left = `${x}px`;
+                cardEl.style.top = `${centerY}px`;
+                cardEl.style.setProperty('--timeline-color', timeline.color);
+
+                // 选中状态
+                if (this.selectedEvent?.event === event &&
+                    this.selectedEvent?.timelineId === timeline.id) {
+                    cardEl.classList.add('active');
+                }
+
+                // 内容结构
+                cardEl.innerHTML = `
+                <div class="event-label">${event.title}</div>
+                <div class="event-popup">
+                    <div class="year">${event.year}</div>
+                    <div class="title">${event.title}</div>
+                    ${event.era ? `<div class="era">[${event.era}]</div>` : ''}
+                </div>
+            `;
+
+                // 事件绑定
+                cardEl.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 防止触发Canvas拖拽
+                    this.selectEvent({
+                        timeline: timeline,
+                        event: event,
+                        timelineId: timeline.id
+                    });
+                });
+
+                // 【可选】如果需要悬浮高亮其他卡片，可在此绑定mouseenter
+                cardEl.addEventListener('mouseenter', () => {
+                    // 可以添加逻辑：高亮相关联的事件
+                });
+
+                overlay.appendChild(cardEl);
+            });
+        });
     }
 
     /**
@@ -437,33 +478,6 @@ class TimelineApp {
         if (span > 50) return 5;
         if (span > 10) return 1;
         return 0.5;
-    }
-
-    handleCanvasClick(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        // 使用缓存的卡片检测点击
-        let found = null;
-        for (const card of this.visibleCards || []) {
-            if (card.containsPoint(x, y)) {
-                found = {
-                    timeline: card.timeline,
-                    event: card.event,
-                    timelineId: card.timelineId
-                };
-                break;
-            }
-        }
-
-        if (found) {
-            this.selectEvent(found);
-        } else {
-            this.selectedEvent = null;
-            this.closeDetail();
-            this.render();
-        }
     }
 
     handleMouseMove(e) {
@@ -585,7 +599,6 @@ class TimelineApp {
         // 计算所有激活时间轴的事件范围
         let min = Infinity;
         let max = -Infinity;
-
         this.timelines
             .filter(t => this.activeTimelines.has(t.id))
             .forEach(t => {
@@ -596,15 +609,13 @@ class TimelineApp {
             });
 
         const padding = (max - min) * 0.1;
-        this.viewStart = min - padding;
-        this.viewEnd = max + padding;
+        this.minYear = Math.floor(min - padding);
+        this.maxYear = Math.ceil(max + padding);
+        this.viewStart = this.minYear;
+        this.viewEnd = this.maxYear;
+
         this.updateRangeSlider();
         this.render();
-    }
-
-    toggleComparisonMode() {
-        this.comparisonMode = !this.comparisonMode;
-        this.showToast(this.comparisonMode ? '对比模式已开启' : '对比模式已关闭');
     }
 
     previousEvent() {
