@@ -274,7 +274,7 @@ body {
 .event-popup {
     position: absolute;
     left: 50%;
-    top: 10px;
+    bottom: calc(100% + 10px);
     /* 与 event-label 完全相同的 top 值 */
     transform: translateX(-50%);
     width: 170px;
@@ -290,39 +290,29 @@ body {
     text-align: center;
 }
 
-/* 悬浮或激活时：标签隐藏 */
-.event-card:hover .event-label,
-.event-card.active .event-label {
-    visibility: hidden;
-    opacity: 0;
-}
-
-/* 悬浮或激活时：弹出层显示，取代标签位置 */
+/* 悬浮或激活时：弹出层显示 */
 .event-card:hover .event-popup,
 .event-card.active .event-popup {
     visibility: visible;
     opacity: 1;
-    pointer-events: auto;
-    /* 悬浮时允许交互 */
 }
 
 /* 小三角向上指（指向时间轴） */
 .event-popup::after {
     content: '';
-    position: absolute;
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    border-width: 0 6px 6px 6px;
-    border-style: solid;
-    border-color: transparent transparent var(--timeline-color) transparent;
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: var(--timeline-color);
 }
 
 .event-popup .year {
     color: var(--timeline-color);
     font-weight: bold;
     font-size: 21px;
-    margin-bottom: 7px;
+    margin-bottom: 5px;
 }
 
 .event-popup .title {
