@@ -15,9 +15,15 @@ class TimelineApp {
         this.mouseY = 0;
         this.hoveredEvent = null;
         this.selectedEvent = null;
-        this.dragging = false;
         this.lastMouseX = 0;
         this.editingId = null;
+
+        // 拖拽相关
+        this.dragging = false;
+        this.hasDragged = false;
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.dragThreshold = 3; // 移动超过3px视为拖拽
 
         // 初始化DOM对象池
         this._eventElements = new Map();
@@ -103,14 +109,17 @@ class TimelineApp {
             // 如果点击目标是DOM卡片，不处理（由卡片自己处理）
             if (e.target.closest('.event-card')) return;
 
-            // 否则视为点击空白处，取消选择
-            this.selectedEvent = null;
-            this.closeDetail();
-            this.render(); // 会重新渲染DOM，移除active类
+            // 如果没有拖拽则取消选择
+            if(!this.hasDragged){
+                this.selectedEvent = null;
+                this.closeDetail();
+                this.render(); // 会重新渲染DOM，移除active类
+            }
         });
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-        this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
+        // 在Window上监听mouseup，防止无法取消拖拽
+        window.addEventListener('mouseup', () => this.handleMouseUp());
         this.container.addEventListener('wheel', (e) => this.handleWheel(e));
         this.canvas.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
@@ -129,6 +138,14 @@ class TimelineApp {
             if (e.key === 'Escape') this.closeDetail();
             if (e.key === 'ArrowLeft') this.previousEvent();
             if (e.key === 'ArrowRight') this.nextEvent();
+        });
+
+        // 当鼠标重新进入窗口时，检查左键是否已释放（按钮状态为0表示未按下）
+        this.container.addEventListener('mouseenter', (e) => {
+            if (this.dragging && e.buttons === 0) {
+                // 如果正在拖拽状态但鼠标按钮未按下，说明在外部释放了，强制结束
+                this.handleMouseUp();
+            }
         });
     }
 
@@ -395,8 +412,8 @@ class TimelineApp {
     /**
      * 使用差异更新更新DOM元素（标签与大卡片）
      * @param {*} activeTimelinesData 
-     * @param {*} trackHeight 轨道Y轴位置
-     * @param {*} width Canvas的宽度
+     * @param {Number} trackHeight 轨道Y轴位置
+     * @param {Number} width Canvas的宽度
      */
     renderEventDOMs(activeTimelinesData, trackHeight, width) {
         const overlay = document.getElementById('eventsOverlay');
@@ -487,11 +504,18 @@ class TimelineApp {
                 </div>
             `;
 
-                // 绑定点击事件（只需绑定一次）
+                // 点击事件：打开详情面板
                 el.addEventListener('click', (e) => {
+                    // 如果操作是拖拽，不是点击，不打开面板
+                    if (this.hasDragged) return;
+
+                    // 防止触发Canvas点击（取消选择）
                     e.stopPropagation();
                     this.selectEvent({ timeline, event, timelineId: timeline.id });
                 });
+
+                // 在标签上按下鼠标也能启动拖拽，并阻止文本选择
+                el.addEventListener('mousedown', (e) => this.handleMouseDown(e));
 
                 this._eventElements.set(key, el);
                 fragment.appendChild(el);
@@ -550,6 +574,7 @@ class TimelineApp {
      * @returns 间距
      */
     calculateTimeStep(span) {
+        // TODO: 更新算法
         if (span > 10000) return 1000;
         if (span > 5000) return 500;
         if (span > 1000) return 100;
@@ -562,6 +587,13 @@ class TimelineApp {
 
     handleMouseMove(e) {
         if (this.dragging) {
+            // 检测是否移动超过阈值
+            const dx = Math.abs(e.clientX - this.dragStartX);
+            const dy = Math.abs(e.clientY - this.dragStartY);
+            if (dx > this.dragThreshold || dy > this.dragThreshold) {
+                this.hasDragged = true;
+            }
+            
             const deltaX = e.clientX - this.lastMouseX;
             const timeSpan = this.viewEnd - this.viewStart;
             const timeDelta = (deltaX / this.canvas.width) * timeSpan;
@@ -586,31 +618,68 @@ class TimelineApp {
     }
 
     handleMouseDown(e) {
-        this.dragging = true;
-        this.lastMouseX = e.clientX;
-        this.container.classList.add('dragging');
+        if(e.button === 0){
+            this.dragging = true;
+            this.dragStartX = e.clientX;  // 记录起始位置
+            this.dragStartY = e.clientY;
+            this.hasDragged = false;      // 重置拖拽标志
+            this.lastMouseX = e.clientX;
+            this.container.classList.add('dragging');
+        }
     }
 
     handleMouseUp() {
+        if (!this.dragging) return; // 如果没在拖拽，直接返回
         this.dragging = false;
+        this.lastMouseX = 0;
         this.container.classList.remove('dragging');
     }
 
     handleWheel(e) {
         e.preventDefault();
+
+        // 获取鼠标相对于Canvas的位置
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const width = this.canvas.width;
+
+        // 计算鼠标指针当前对应的时间点（世界坐标）
+        const timeSpan = this.viewEnd - this.viewStart;
+        const mouseTime = this.viewStart + (mouseX / width) * timeSpan;
+
+        // 计算缩放
         const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-        const center = (this.viewStart + this.viewEnd) / 2;
-        const span = (this.viewEnd - this.viewStart) * zoomFactor;
+        let newSpan = timeSpan * zoomFactor;
 
-        this.viewStart = center - span / 2;
-        this.viewEnd = center + span / 2;
-
-        // 边界限制
-        if (this.viewEnd - this.viewStart > this.maxYear - this.minYear) {
-            this.viewStart = this.minYear;
-            this.viewEnd = this.maxYear;
+        // 限制最大缩放范围（不能小于当前时间轴总跨度）
+        const maxSpan = this.maxYear - this.minYear;
+        if (newSpan > maxSpan) {
+            newSpan = maxSpan;
+        }
+        // 限制最小缩放范围（避免过度放大，最少显示5年）
+        if (newSpan < 5) {
+            newSpan = 5;
         }
 
+        // 计算鼠标位置在视口中的比例（0到1之间）
+        const ratio = mouseX / width;
+
+        // 以鼠标位置为中心计算新的视图范围
+        let newStart = mouseTime - ratio * newSpan;
+        let newEnd = mouseTime + (1 - ratio) * newSpan;
+
+        // 边界检查与调整：如果超出边界，进行硬裁剪
+        if (newStart < this.minYear) {
+            newStart = this.minYear;
+            newEnd = this.minYear + newSpan;
+        }
+        if (newEnd > this.maxYear) {
+            newEnd = this.maxYear;
+            newStart = this.maxYear - newSpan;
+        }
+
+        this.viewStart = newStart;
+        this.viewEnd = newEnd;
         this.updateRangeSlider();
         this.render();
     }

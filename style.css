@@ -225,17 +225,18 @@ body {
     width: 0;
     height: 0;
     z-index: 10;
-    pointer-events: auto;
-    /* 热区通过增大点击区域实现，不影响布局 */
+    pointer-events: none;
+    /* 防止用户选中文字 */
+    user-select: none; 
 }
 
 /* 纵向标签（默认状态） */
 .event-label {
     position: absolute;
-    left: 50%;
     /* 在宽度0的父元素中，50%就是中心点 */
-    top: 10px;
+    left: 50%;
     /* 在时间轴下方10px */
+    top: 10px;
     transform: translateX(-50%);
     writing-mode: vertical-rl;
     text-orientation: mixed;
@@ -244,9 +245,10 @@ body {
     padding: 8px 4px;
     border-radius: 4px;
     font-size: 14px;
+    letter-spacing: 1px;
     white-space: nowrap;
-    /* overflow: hidden; */
     text-overflow: ellipsis;
+    overflow: hidden;
     max-height: 140px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     visibility: visible;
@@ -254,13 +256,20 @@ body {
     transition: opacity 0.15s ease, visibility 0.15s;
     /* 确保标签本身可以交互 */
     pointer-events: auto;
+    /* 动画 */
+    transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+    /* 设置变换原点为顶部中心，这样放大时会向下扩展，而不是向四周 */
+    transform-origin: top center;
+    /* 给背景色建立一个向上的1像素溢出，防止缩放时出现细线 */
+    border-top: 1px solid var(--timeline-color);
+    margin-top: -1px;
 }
 
 /* 添加向上箭头，指向时间轴 */
-.event-label::before {
+.event-card.has-label::before {
     content: '';
     position: absolute;
-    top: -6px;
+    top: 5px;
     left: 50%;
     transform: translateX(-50%);
     border-left: 6px solid transparent;
@@ -269,6 +278,18 @@ body {
     width: 0;
     height: 0;
     pointer-events: none;
+}
+
+.event-card.no-label::before {
+    display: none;
+}
+
+/* 悬浮时标签放大效果 */
+.event-card:hover .event-label {
+    transform: translateX(-50%) scale(1.15);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    filter: brightness(1.1);
 }
 
 .event-popup {
@@ -325,6 +346,19 @@ body {
     color: #888;
     font-size: 14px;
     margin-top: 7px;
+}
+
+/* 选中状态的大卡片高亮效果 */
+.event-card.active .event-popup {
+    /* border-color: #ffffff;  */
+    background-color: #dddddd;
+    /* border-width: 3px; */
+    pointer-events: auto; /* 允许交互 */
+}
+/* 选中状态下的大卡片内容颜色微调 */
+.event-card.active .event-popup .title {
+    color: var(--timeline-color);
+    font-weight: 700;
 }
 
 /* 工具栏 */
@@ -429,7 +463,7 @@ body {
     height: 30px;
     background: var(--bg-tertiary);
     border-radius: 6px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .range-track {
