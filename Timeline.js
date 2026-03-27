@@ -36,71 +36,41 @@ class TimelineApp {
     }
 
     init() {
-        this.loadSampleData();
         this.setupEventListeners();
         this.setupRangeSlider();
         this.renderSidebar();
         this.renderCategories();
         this.resizeCanvas();
 
-        // 默认激活三体时间轴
-        const threeBody = this.timelines.find(t => t.id === 'three-body');
-        if (threeBody) {
-            this.toggleTimeline(threeBody.id); // 会触发自动适配
-        } else {
-            this.render();
-        }
+        this.loadData().then(() => {
+            // 默认激活三体时间轴
+            const threeBody = this.timelines.find(t => t.id === 'three-body');
+            if (threeBody) this.toggleTimeline(threeBody.id); 
+        })
     }
 
-    loadSampleData() {
-        // 内置示例数据：《三体》时间轴（基于用户提供的博客内容）
-        this.timelines = [
-            {
-                id: 'three-body',
-                title: '三体',
-                category: '科幻文学',
-                color: '#3b82f6',
-                events: [
-                    { year: 1453, importance: 0,title: '四维空间接触地球', desc: '君士坦丁堡战役中，四维空间翘曲点与地球接触', detail: '16时，四维空间翘曲点与地球接触，接触点为正值君士坦丁堡战役的君士坦丁堡，吞掉了奥多修斯北部布拉赫内区的一座清真寺的塔尖。5月28日21时，四维空间翘曲点完全离开地球。', era: '中世纪' },
-                    { year: 1947, importance: 0, title: '叶文洁出生', desc: '叶文洁出生于1947年6月', detail: '', era: '' },
-                    { year: 1967, importance: 0, title: '叶泰哲之死', desc: '叶泰哲在批斗会上被打死', detail: '留下了崩溃的妻子绍琳和女儿叶文洁。这是叶文洁人生的转折点。', era: '文革时代' },
-                    { year: 1968, importance: 0, title: '红岸基地建成', desc: '红岸基地（雷达峰）建成', detail: '用于搜索地外文明的绝密国防工程。', era: '文革时代' },
-                    { year: 1969, importance: 1, title: '叶文洁进入红岸', desc: '叶文洁被红岸基地吸收', detail: '叶文洁读了《寂静的春天》，帮白沐霖抄写举报信被诬陷，以戴罪立功为由进入红岸基地。', era: '文革时代' },
-                    { year: 1971, importance: 2, title: '叶文洁发送信号', desc: '叶文洁向太阳发射信号', detail: '秋，叶文洁发现太阳是电波放大器，借试发射之机向太阳发射信号，8分钟后信号以光速飞向宇宙。', era: '文革时代' },
-                    { year: 1975, importance: 0, title: '三体世界收到信号', desc: '1379号监听站收到地球消息', detail: '三体文明1379号监听站收到地球的消息，监听员发回了警告信息。', era: '' },
-                    { year: 1979, importance: 2, title: '收到三体回复', desc: '叶文洁收到三体世界警告', detail: '10月21日凌晨，收到三体世界的警告回信。清晨，叶文洁回复希望三体来解决人类问题。下午杀死雷志成和杨卫宁。', era: '黄金时代' },
-                    { year: 1980, importance: 0, title: '杨冬出生', desc: '叶文洁女儿杨冬出生', detail: '1980年6月，杨冬出生。', era: '黄金时代' },
-                    { year: 1982, importance: 1, title: '三体舰队启航', desc: '三体第一舰队启航', detail: '三体第一舰队向着地球的大致方向启航。', era: '' },
-                    { year: 1984, importance: 0, title: '智子工程启动', desc: '三体制定杀死地球科学的计划', detail: '三体文明收到叶文洁回信，确定地球坐标。元首制定染色、神迹、智子工程计划。', era: '' },
-                    { year: 2007, importance: 0, title: '危机纪元开始', desc: '科学边界与科学家自杀', detail: '不到两个月内许多理论物理学家自杀。汪淼看到倒计时，宇宙背景辐射闪烁，ETO聚会，古筝行动夺取三体信息。', era: '危机纪元' },
-                    { year: 2010, importance: 1, title: '面壁计划启动', desc: '四位面壁者选定', detail: '中国太空军成立。特别联大通过117号决议宣布逃亡主义非法。面壁计划启动，罗辑、泰勒、雷迪亚兹、希恩斯成为面壁者。', era: '危机纪元' },
-                    { year: 2015, importance: 0, title: '罗辑发出咒语', desc: '黑暗森林法则初现', detail: '罗辑看到宇宙真相，称黑暗森林法则。感染基因导弹，冬眠前通过太阳向宇宙发射187J3X1恒星坐标。', era: '危机纪元' },
-                    { year: 2205, importance: 0, title: '水滴攻击', desc: '三体水滴摧毁人类舰队', detail: '三体水滴到达太阳系，封死太阳。丁仪考察水滴，水滴启动，几乎全歼人类舰队。只有量子号和青铜时代号逃脱。', era: '危机纪元' },
-                    { year: 2208, importance: 0, title: '建立威慑', desc: '罗辑建立黑暗森林威慑', desc: '罗辑与三体对决，以雪地工程布置的核弹建立威慑。三体接受谈判，解除太阳封锁。罗辑成为执剑人。', era: '' },
-                    { year: 2270, importance: 0, title: '威慑终结', desc: '程心接任执剑人', detail: '程心当选执剑人，16分钟后水滴摧毁引力波发射器，威慑终止。万有引力号和蓝色空间号启动引力波广播。', era: '威慑纪元' },
-                    { year: 2274, importance: 0, title: '三体世界毁灭', desc: '三体星系被光粒摧毁', detail: '10月，三体世界被光粒摧毁。云天明通过三个童话故事向程心传递情报。', era: '广播纪元' },
-                    { year: 2400, importance: 1, title: '太阳系毁灭', desc: '二向箔打击，太阳系二维化', detail: '5月19日，程心被唤醒。二向箔使三维空间向二维跌落，太阳系毁灭。程心乘坐星环号逃离。', era: '掩体纪元' }
-                ]
-            },
-            {
-                id: 'quantum-physics',
-                title: '量子力学发展史',
-                category: '科学史',
-                color: '#8b5cf6',
-                events: [
-                    { year: 1900, importance: 0, title: '普朗克量子假说', desc: '马克斯·普朗克提出能量量子化', detail: '为解释黑体辐射，普朗克提出能量不是连续的，而是以离散的能量包（量子）形式存在。E = hν', era: '量子诞生' },
-                    { year: 1905, importance: 0, title: '光电效应', desc: '爱因斯坦解释光电效应', detail: '爱因斯坦提出光由光子组成，解释了光电效应，证明光具有粒子性。获得1921年诺贝尔物理学奖。', era: '' },
-                    { year: 1913, importance: 0, title: '玻尔模型', desc: '尼尔斯·玻尔提出原子模型', detail: '电子在特定轨道上绕核运动，只能存在于特定的能级，跃迁时吸收或发射光子。', era: '' },
-                    { year: 1924, importance: 0, title: '物质波', desc: '德布罗意提出物质波假说', detail: '路易·德布罗意提出所有物质都具有波动性，波长λ = h/p。为量子力学奠定基础。', era: '' },
-                    { year: 1925, importance: 0, title: '矩阵力学', desc: '海森堡创立矩阵力学', detail: '维尔纳·海森堡提出用矩阵描述量子系统，与玻恩和约当共同发展。', era: '量子革命' },
-                    { year: 1926, importance: 0, title: '薛定谔方程', desc: '薛定谔提出波动力学', detail: '埃尔温·薛定谔提出描述量子系统演化的波动方程，证明与矩阵力学等价。', era: '量子革命' },
-                    { year: 1927, importance: 0, title: '不确定性原理', desc: '海森堡提出测不准原理', detail: '无法同时精确测量粒子的位置和动量，Δx·Δp ≥ ℏ/2。同年，玻尔提出互补原理。', era: '' },
-                    { year: 1927, importance: 0, title: '第五次索尔维会议', desc: '量子力学大论战', detail: '玻尔与爱因斯坦就量子力学解释展开激烈辩论，爱因斯坦："上帝不掷骰子"。', era: '' },
-                    { year: 1935, importance: 0, title: 'EPR悖论', desc: '爱因斯坦质疑量子力学完备性', detail: '爱因斯坦、波多尔斯基、罗森提出EPR悖论，质疑量子力学的局域性。', era: '' },
-                    { year: 1935, importance: 0, title: '薛定谔的猫', desc: '量子叠加态思想实验', detail: '薛定谔提出猫同时处于生死叠加态的思想实验，质疑哥本哈根诠释。', era: '' }
-                ]
-            }
-        ];
+    async loadData() {
+        try {
+            // 1. 加载注册表（这是分类的唯一来源）
+            const indexRes = await fetch('./Timelines.json');
+            const timelineIndex = await indexRes.json();
+
+            // 2. 并行加载所有时间轴内容
+            const loadPromises = timelineIndex.map(async (meta) => {
+                const res = await fetch(`./${meta.file}`);
+                const timelineData = await res.json();
+                return {
+                    ...timelineData,
+                    category: meta.category,  // 强制使用 index 的分类
+                };
+            });
+
+            this.timelines = await Promise.all(loadPromises);
+        } catch (err) {
+            console.error('加载时间轴数据失败:', err);
+            this.showToast('数据加载失败');
+            this.timelines = [];
+        }
     }
 
     setupEventListeners() {
