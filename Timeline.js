@@ -1,10 +1,27 @@
 'use strict'
 const MIN_LABEL_SPACING = 25; // 标签间最小像素间距
-
+const PADDING_AMOUNT = 0.02; // 年份范围的留白
+const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
+const TIMELINE_INDEX = [
+    {
+        id: 'three-body',
+        title: '三体',
+        color: '#3b82f6',
+        eventPath: './TL_Data/TL_ThreeBody.json',
+        category: '科幻文学'
+    },
+    {
+        id: 'quantum-physics',
+        title: '量子力学发展史',
+        color: '#8b5cf6',
+        eventPath: './TL_Data/TL_QuantumPhysics.json',
+        category: '科学史'
+    }
+];
 
 class TimelineApp {
     constructor() {
-        this.timelines = [];
+        this.timelines = []; // {id, title, events, color, category}
         this.activeTimelines = new Set();
         this.currentZoom = 1;
         this.minYear = 0;
@@ -13,7 +30,6 @@ class TimelineApp {
         this.viewEnd = 2020;
         this.mouseX = 0;
         this.mouseY = 0;
-        this.hoveredEvent = null;
         this.selectedEvent = null;
         this.lastMouseX = 0;
         this.editingId = null;
@@ -23,7 +39,6 @@ class TimelineApp {
         this.hasDragged = false;
         this.dragStartX = 0;
         this.dragStartY = 0;
-        this.dragThreshold = 3; // 移动超过3px视为拖拽
 
         // 初始化DOM对象池
         this._eventElements = new Map();
@@ -42,26 +57,29 @@ class TimelineApp {
         this.renderCategories();
         this.resizeCanvas();
 
+        // 加载时间轴数据
         this.loadData().then(() => {
             // 默认激活三体时间轴
             const threeBody = this.timelines.find(t => t.id === 'three-body');
-            if (threeBody) this.toggleTimeline(threeBody.id); 
+            if (threeBody) this.toggleTimeline(threeBody.id);
         })
     }
 
+    /**
+     * 根据INDEX，从Json中加载事件数据
+     */
     async loadData() {
         try {
-            // 1. 加载注册表（这是分类的唯一来源）
-            const indexRes = await fetch('./Timelines.json');
-            const timelineIndex = await indexRes.json();
-
-            // 2. 并行加载所有时间轴内容
-            const loadPromises = timelineIndex.map(async (meta) => {
-                const res = await fetch(`./${meta.file}`);
-                const timelineData = await res.json();
+            // 并行加载所有时间轴内容
+            const loadPromises = TIMELINE_INDEX.map(async (meta) => {
+                const res = await fetch(`${meta.eventPath}`);
+                const timelineEvents = await res.json();
                 return {
-                    ...timelineData,
-                    category: meta.category,  // 强制使用 index 的分类
+                    id: meta.id,
+                    title: meta.title,
+                    events: timelineEvents,
+                    color: meta.color,
+                    category: meta.category
                 };
             });
 
@@ -80,7 +98,7 @@ class TimelineApp {
             if (e.target.closest('.event-card')) return;
 
             // 如果没有拖拽则取消选择
-            if(!this.hasDragged){
+            if (!this.hasDragged) {
                 this.selectedEvent = null;
                 this.closeDetail();
                 this.render(); // 会重新渲染DOM，移除active类
@@ -231,7 +249,7 @@ class TimelineApp {
     toggleTimeline(id) {
         const wasEmpty = this.activeTimelines.size === 0;
 
-        if (this.activeTimelines.has(id)) this.activeTimelines.delete(id); 
+        if (this.activeTimelines.has(id)) this.activeTimelines.delete(id);
         else this.activeTimelines.add(id);
         this.renderSidebar();
 
@@ -278,7 +296,7 @@ class TimelineApp {
                 this._eventElements.forEach(el => el.remove());
                 this._eventElements.clear();
             }
-            document.getElementById('eventsOverlay').innerHTML = ''; 
+            document.getElementById('eventsOverlay').innerHTML = '';
             return;
         }
         document.getElementById('emptyState').style.display = 'none';
@@ -352,7 +370,7 @@ class TimelineApp {
         });
     }
 
-    
+
     renderTimeScale(ctx, width, height) {
         const timeSpan = this.viewEnd - this.viewStart;
         const step = this.calculateTimeStep(timeSpan);
@@ -528,8 +546,8 @@ class TimelineApp {
                 });
             });
 
-        // 添加10%边距
-        const padding = (max - min) * 0.1;
+        // 添加边距
+        const padding = (max - min) * PADDING_AMOUNT;
         this.minYear = Math.floor(min - padding);
         this.maxYear = Math.ceil(max + padding);
 
@@ -560,10 +578,10 @@ class TimelineApp {
             // 检测是否移动超过阈值
             const dx = Math.abs(e.clientX - this.dragStartX);
             const dy = Math.abs(e.clientY - this.dragStartY);
-            if (dx > this.dragThreshold || dy > this.dragThreshold) {
+            if (dx > this.DRAG_THRESHOLD || dy > this.DRAG_THRESHOLD) {
                 this.hasDragged = true;
             }
-            
+
             const deltaX = e.clientX - this.lastMouseX;
             const timeSpan = this.viewEnd - this.viewStart;
             const timeDelta = (deltaX / this.canvas.width) * timeSpan;
@@ -588,7 +606,7 @@ class TimelineApp {
     }
 
     handleMouseDown(e) {
-        if(e.button === 0){
+        if (e.button === 0) {
             this.dragging = true;
             this.dragStartX = e.clientX;  // 记录起始位置
             this.dragStartY = e.clientY;
@@ -727,7 +745,7 @@ class TimelineApp {
                 });
             });
 
-        const padding = (max - min) * 0.1;
+        const padding = (max - min) * PADDING_AMOUNT;
         this.minYear = Math.floor(min - padding);
         this.maxYear = Math.ceil(max + padding);
         this.viewStart = this.minYear;
