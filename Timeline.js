@@ -2,26 +2,49 @@
 const MIN_LABEL_SPACING = 25; // 标签间最小像素间距
 const PADDING_AMOUNT = 0.05; // 年份范围的留白
 const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
-const TIMELINE_INDEX = [
-    {
-        id: 'three-body',
-        title: '三体',
-        color: '#3b82f6',
-        eventPath: './TL_Data/TL_ThreeBody.json',
-        category: '科幻文学'
-    },
-    {
-        id: 'quantum-physics',
-        title: '量子力学发展史',
-        color: '#8b5cf6',
-        eventPath: './TL_Data/TL_QuantumPhysics.json',
-        category: '科学史'
-    }
-];
+
+/**
+ * 时间轴中的事件对象结构体
+ * @param {Int} year 事件年份
+ * @param {String} title 事件标题
+ * @param {String} label 事件标签（为空则使用标题）
+ * @param {Int} importance 重要度
+ * @param {String} desc 描述
+ * @param {String} detail 细节
+ * @param {String} era 时代 可为空
+ */
+let MyEvent = function (year, title, label = '', importance = 0, desc, detail, era = '') {
+    this.year = year;
+    this.title = title;
+    this.label = label;
+    this.importance = importance;
+    this.desc = desc;
+    this.detail = detail;
+    this.era = era;
+};
+
+/**
+ * 时间轴对象结构体
+ * @param {String} id 
+ * @param {String} title 
+ * @param {MyEvent[]} events 
+ * @param {String} color 
+ * @param {String} category 
+ */
+let Timeline = function (id, title, events, color, category) {
+    this.id = id;
+    this.title = title;
+    this.color = color;
+    this.category = category;
+    this.events = events;
+};
+
 
 class TimelineApp {
-    constructor() {
-        this.timelines = []; // {id, title, events, color, category}
+    constructor(timelineIndex, defaultTimelineId) {
+        /** @type {Timeline[]} */
+        this.timelines = [];
+        /** @type {Set<String>} */
         this.activeTimelines = new Set();
         this.minYear = 0;
         this.maxYear = 10000;
@@ -29,6 +52,7 @@ class TimelineApp {
         this.viewEnd = 2020;
         this.mouseX = 0;
         this.mouseY = 0;
+        /** @type {timelineId: String, event: MyEvent} */
         this.selectedEvent = null;
         this.lastMouseX = 0;
         this.editingId = null;
@@ -46,21 +70,22 @@ class TimelineApp {
         this.ctx = this.canvas.getContext('2d');
         this.container = document.getElementById('canvasContainer');
 
-        this.init();
+        this.init(timelineIndex, defaultTimelineId);
     }
 
-    init() {
+    init(timelineIndex, defaultTimelineId) {
         this.setupEventListeners();
         this.setupRangeSlider();
         this.resizeCanvas();
 
         // 加载时间轴数据
-        this.loadData().then(() => {
+        this.loadData(timelineIndex).then(() => {
             // 生成侧边栏
             this.renderSidebar();
-            // 默认激活三体时间轴
-            const threeBody = this.timelines.find(t => t.id === 'three-body');
-            if (threeBody) this.toggleTimeline(threeBody.id);
+            // 默认激活时间轴
+            if (this.timelines.find(t => t.id === defaultTimelineId)) {
+                this.toggleTimeline(defaultTimelineId);
+            }
             // 生成类别标签
             this.renderCategories();
         })
@@ -69,19 +94,20 @@ class TimelineApp {
     /**
      * 根据INDEX，从Json中加载事件数据
      */
-    async loadData() {
+    async loadData(timelineIndex) {
         try {
             // 并行加载所有时间轴内容
-            const loadPromises = TIMELINE_INDEX.map(async (meta) => {
+            const loadPromises = timelineIndex.map(async (meta) => {
                 const res = await fetch(`${meta.eventPath}`);
+                /** @type {MyEvent[]} */
                 const timelineEvents = await res.json();
-                return {
-                    id: meta.id,
-                    title: meta.title,
-                    events: timelineEvents,
-                    color: meta.color,
-                    category: meta.category
-                };
+                return new Timeline(
+                    meta.id,
+                    meta.title,
+                    timelineEvents.map(e => new MyEvent(e.year, e.title, e.label, e.importance, e.desc, e.detail, e.era)),
+                    meta.color,
+                    meta.category
+                );
             });
 
             this.timelines = await Promise.all(loadPromises);
@@ -158,8 +184,13 @@ class TimelineApp {
             this.viewStart = this.minYear + (totalSpan * left / 100);
             this.viewEnd = this.minYear + (totalSpan * right / 100);
 
-            document.getElementById('rangeStartLabel').textContent = Math.round(this.viewStart);
-            document.getElementById('rangeEndLabel').textContent = Math.round(this.viewEnd);
+            // 更新滑块上的年份标签（当前视口范围）
+            document.getElementById('handleLeftLabel').textContent = Math.round(this.viewStart);
+            document.getElementById('handleRightLabel').textContent = Math.round(this.viewEnd);
+
+            // 更新下方整体范围标签
+            document.getElementById('extentMinLabel').textContent = Math.round(this.minYear);
+            document.getElementById('extentMaxLabel').textContent = Math.round(this.maxYear);
 
             this.render();
         };
@@ -256,11 +287,8 @@ class TimelineApp {
         this.renderSidebar();
 
         // 如果从空状态变为有内容，自动适配范围（带padding）
-        if (wasEmpty && this.activeTimelines.size > 0) {
-            this.resetView();
-        } else {
-            this.render();
-        }
+        if (wasEmpty && this.activeTimelines.size > 0) this.resetView();
+        else this.render();
     }
 
     filterCategory(category) {
@@ -274,7 +302,7 @@ class TimelineApp {
             this.activeTimelines.clear();
             this.timelines.filter(t => t.category === category).forEach(t => this.activeTimelines.add(t.id));
         }
-        
+
         this.resetView();
         this.renderSidebar();
         this.render();
@@ -327,7 +355,7 @@ class TimelineApp {
     /**
      * 
      * @param {CanvasRenderingContext2D} ctx 
-     * @param {*} timeline 
+     * @param {Timeline} timeline 
      * @param {*} trackIndex 
      * @param {*} trackHeight 
      * @param {Number} width 
@@ -402,7 +430,7 @@ class TimelineApp {
 
     /**
      * 使用差异更新更新DOM元素（标签与大卡片）
-     * @param {*} activeTimelinesData 
+     * @param {Timeline[]} activeTimelinesData 
      * @param {Number} trackHeight 轨道Y轴位置
      * @param {Number} width Canvas的宽度
      */
@@ -411,6 +439,7 @@ class TimelineApp {
         const timeSpan = this.viewEnd - this.viewStart;
 
         // 收集当前应该显示的所有事件
+        /** @type {Map<string, {x: number, y: number, event: MyEvent, timeline: Timeline, hasLabel: boolean}>} */
         const eventsToShow = new Map(); // key -> {x, y, event, timeline, hasLabel}
 
         activeTimelinesData.forEach((timeline, trackIndex) => {
@@ -487,10 +516,10 @@ class TimelineApp {
 
                 // 内容结构
                 el.innerHTML = `
-                <div class="event-label">${event.title}</div>
+                <div class="event-label">${event.label || event.title}</div>
                 <div class="event-popup">
                     <div class="year">${event.year}</div>
-                    <div class="title">${event.title}</div>
+                    <div class="title">${event.desc}</div>
                     ${event.era ? `<div class="era">[${event.era}]</div>` : ''}
                 </div>
             `;
@@ -502,7 +531,7 @@ class TimelineApp {
 
                     // 防止触发Canvas点击（取消选择）
                     e.stopPropagation();
-                    this.selectEvent({ timeline, event, timelineId: timeline.id });
+                    this.selectEvent(timeline, event, timeline.id);
                 });
 
                 // 在标签上按下鼠标也能启动拖拽，并阻止文本选择
@@ -627,6 +656,7 @@ class TimelineApp {
     }
 
     handleWheel(e) {
+        // 防止页面滚动
         e.preventDefault();
 
         // 获取鼠标相对于Canvas的位置
@@ -688,11 +718,22 @@ class TimelineApp {
         document.getElementById('rangeSelection').style.left = left + '%';
         document.getElementById('rangeSelection').style.width = (right - left) + '%';
 
-        document.getElementById('rangeStartLabel').textContent = Math.round(this.viewStart);
-        document.getElementById('rangeEndLabel').textContent = Math.round(this.viewEnd);
+        // 更新滑块上的年份标签（当前视口范围）
+        document.getElementById('handleLeftLabel').textContent = Math.round(this.viewStart);
+        document.getElementById('handleRightLabel').textContent = Math.round(this.viewEnd);
+
+        // 更新下方整体范围标签
+        document.getElementById('extentMinLabel').textContent = Math.round(this.minYear);
+        document.getElementById('extentMaxLabel').textContent = Math.round(this.maxYear);
     }
 
-    selectEvent({ timeline, event, timelineId }) {
+    /**
+     * 选中事件
+     * @param {Timeline} timeline 时间轴
+     * @param {MyEvent} event 选中的事件
+     * @param {String} timelineId 时间轴ID
+     */
+    selectEvent(timeline, event, timelineId) {
         this.selectedEvent = { timelineId, event };
         this.render();
 
@@ -746,11 +787,7 @@ class TimelineApp {
         const timeline = this.timelines.find(t => t.id === this.selectedEvent.timelineId);
         const idx = timeline.events.indexOf(this.selectedEvent.event);
         if (idx > 0) {
-            this.selectEvent({
-                timeline,
-                event: timeline.events[idx - 1],
-                timelineId: timeline.id
-            });
+            this.selectEvent(timeline, timeline.events[idx - 1], timeline.id);
         }
     }
 
@@ -760,11 +797,7 @@ class TimelineApp {
         const timeline = this.timelines.find(t => t.id === this.selectedEvent.timelineId);
         const idx = timeline.events.indexOf(this.selectedEvent.event);
         if (idx < timeline.events.length - 1) {
-            this.selectEvent({
-                timeline,
-                event: timeline.events[idx + 1],
-                timelineId: timeline.id
-            });
+            this.selectEvent(timeline, timeline.events[idx + 1], timeline.id);
         }
     }
 
@@ -918,6 +951,3 @@ class TimelineApp {
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
 }
-
-// 初始化应用
-const app = new TimelineApp();

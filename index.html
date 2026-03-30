@@ -64,16 +64,20 @@
 
             <!-- 范围选择器 -->
             <div class="range-selector">
-                <div class="range-labels">
-                    <span id="rangeStartLabel">1453</span>
-                    <span style="color: var(--accent-blue);">拖动滑块调整时间范围</span>
-                    <span id="rangeEndLabel">18906416</span>
-                </div>
                 <div class="range-slider-container" id="rangeSlider">
                     <div class="range-track"></div>
                     <div class="range-selection" id="rangeSelection"></div>
-                    <div class="range-handle" id="handleLeft" style="left: 0%;"></div>
-                    <div class="range-handle" id="handleRight" style="left: 100%;"></div>
+                    <div class="range-handle" id="handleLeft" style="left: 0%;">
+                        <span class="handle-label" id="handleLeftLabel">1453</span>
+                    </div>
+                    <div class="range-handle" id="handleRight" style="left: 100%;">
+                        <span class="handle-label" id="handleRightLabel">2020</span>
+                    </div>
+                </div>
+                <div class="range-extent-labels">
+                    <span id="extentMinLabel">-10000</span>
+                    <span style="color: var(--text-secondary);">整体范围</span>
+                    <span id="extentMaxLabel">20000</span>
                 </div>
             </div>
         </main>
@@ -186,6 +190,7 @@
     <!-- 提示信息 -->
     <div class="toast" id="toast"></div>
     <script src="Timeline.js"></script>
+    <script src="index.js"></script>
 </body>
 
 </html>
