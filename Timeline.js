@@ -13,8 +13,10 @@ const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
  * @param {String} detail 细节
  * @param {String} era 时代 可为空
  */
-let MyEvent = function (year, title, label = '', importance = 0, desc, detail, era = '') {
+let MyEvent = function (year, month, day, title, label = '', importance = 0, desc, detail, era = '') {
     this.year = year;
+    this.month = month;
+    this.day = day;
     this.title = title;
     this.label = label;
     this.importance = importance;
@@ -104,7 +106,7 @@ class TimelineApp {
                 return new Timeline(
                     meta.id,
                     meta.title,
-                    timelineEvents.map(e => new MyEvent(e.year, e.title, e.label, e.importance, e.desc, e.detail, e.era)),
+                    timelineEvents.map(e => new MyEvent(e.year, e.month, e.day, e.title, e.label, e.importance, e.desc, e.detail, e.era)),
                     meta.color,
                     meta.category
                 );
@@ -356,8 +358,8 @@ class TimelineApp {
      * 
      * @param {CanvasRenderingContext2D} ctx 
      * @param {Timeline} timeline 
-     * @param {*} trackIndex 
-     * @param {*} trackHeight 
+     * @param {Int} trackIndex 
+     * @param {Number} trackHeight 
      * @param {Number} width 
      */
     renderTimelineTrack(ctx, timeline, trackIndex, trackHeight, width) {
@@ -384,10 +386,13 @@ class TimelineApp {
 
         const timeSpan = this.viewEnd - this.viewStart;
 
-        // 在每个事件位置画时间点标记（小圆点或短竖线）
+        // 在每个事件位置画时间点标记
         timeline.events.forEach(event => {
             if (event.year < this.viewStart || event.year > this.viewEnd) return;
-            const x = ((event.year - this.viewStart) / timeSpan) * width;
+            // 获取小数年份（考虑月份和日期）
+            const decimalYear = this.getDecimalYear(event);
+            if (decimalYear < this.viewStart || decimalYear > this.viewEnd) return;
+            const x = ((decimalYear - this.viewStart) / timeSpan) * width;
 
             // 画小圆点
             ctx.beginPath();
@@ -406,23 +411,43 @@ class TimelineApp {
         const timeSpan = this.viewEnd - this.viewStart;
         const step = this.calculateTimeStep(timeSpan);
 
-        ctx.fillStyle = '#64748b';
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'center';
-
-        for (let year = Math.ceil(this.viewStart / step) * step; year <= this.viewEnd; year += step) {
-            const x = ((year - this.viewStart) / timeSpan) * width;
+        // 绘制主刻度
+        for (let t = Math.ceil(this.viewStart / step) * step; t <= this.viewEnd; t += step) {
+            const x = ((t - this.viewStart) / timeSpan) * width;
 
             // 刻度线
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = t % 100 === 0 ? '#46566b' : '#334155';
+            ctx.lineWidth = t % 100 === 0 ? 1.5 : 1;
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
             ctx.stroke();
 
             // 年份标签
-            ctx.fillText(year.toString(), x, height - 10);
+            ctx.fillStyle = '#64748b';
+            ctx.font = t % 100 === 0 ? 'bold 14px sans-serif' : '11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(t.toString(), x, height - 10);
+        }
+
+        // 绘制当前时间刻度（亮黄色）
+        const currentYear = new Date().getFullYear();
+        if (currentYear >= this.viewStart && currentYear <= this.viewEnd) {
+            const x = ((currentYear - this.viewStart) / timeSpan) * width;
+            
+            // 亮黄色刻度线
+            ctx.strokeStyle = '#facc15'; // 亮黄色
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+            
+            // 当前年份标签
+            ctx.fillStyle = '#facc15';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(currentYear.toString(), x, height - 10);
         }
 
         ctx.textAlign = 'left';
@@ -449,9 +474,9 @@ class TimelineApp {
             const visibleEvents = timeline.events
                 .map(event => ({
                     event,
-                    x: ((event.year - this.viewStart) / timeSpan) * width,
+                    x: ((this.getDecimalYear(event) - this.viewStart) / timeSpan) * width,
                     importance: event.importance || 0,
-                    year: event.year,
+                    decimalYear: this.getDecimalYear(event),
                     key: `${timeline.id}-${event.year}-${event.title}`
                 }))
                 .filter(item => item.x >= -150 && item.x <= width + 150);
@@ -459,7 +484,7 @@ class TimelineApp {
             // 按重要度选择显示标签的
             const sorted = [...visibleEvents].sort((a, b) => {
                 if (b.importance !== a.importance) return b.importance - a.importance;
-                return a.year - b.year;
+                return a.decimalYear - b.decimalYear;
             });
 
             const showLabelSet = new Set();
@@ -518,7 +543,7 @@ class TimelineApp {
                 el.innerHTML = `
                 <div class="event-label">${event.label || event.title}</div>
                 <div class="event-popup">
-                    <div class="year">${event.year}</div>
+                    <div class="year">${this.formatEventDate(event)}</div>
                     <div class="title">${event.desc}</div>
                     ${event.era ? `<div class="era">[${event.era}]</div>` : ''}
                 </div>
@@ -558,6 +583,49 @@ class TimelineApp {
         if (fragment.children.length > 0) {
             overlay.appendChild(fragment);
         }
+    }
+
+    /**
+     * 将 year/month/day 转换为小数年份,如：1979年10月21日 → 1979.805
+     * @param {MyEvent} event 事件对象，包含 year, month, day
+     * @return {Number} 转换后的小数年份
+     */
+    getDecimalYear(event) {
+        if (!event.month || event.month === '') return event.year;
+
+        // 月份转换为年的小数：1月=0, 12月≈0.92
+        const monthFraction = (event.month - 1) / 12;
+
+        // 日期转换为月的小数，再转为年的小数
+        let dayFraction = 0;
+        if (event.day && event.day !== '') {
+            const daysInMonth = new Date(event.year, event.month, 0).getDate(); // 获取该月总天数
+            dayFraction = (event.day - 1) / daysInMonth / 12;
+        }
+
+        return event.year + monthFraction + dayFraction;
+    }
+
+    /**
+     * 格式化显示日期，如 "1979.10.21" 或 "1979.10" 或 "1979"
+     * @param {MyEvent} event 事件对象，包含 year, month, day
+     * @returns {String} 格式化后的日期字符串，如 "1979.10.21" 或 "1979.10" 或 "1979"
+     */
+    formatEventDate(event) {
+        if (!event.month || event.month === '') return event.year.toString();
+        if (!event.day || event.day === '') return `${event.year}.${event.month.toString().padStart(2, '0')}`;
+        return `${event.year}.${event.month.toString().padStart(2, '0')}.${event.day.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * 获取详细日期描述，如 "1979.10.21 (公元前)" 或 "1979.10 (公元前)" 或 "1979 (公元前)"
+     * @param {MyEvent} event 事件对象，包含 year, month, day, era
+     * @returns {String} 格式化后的日期字符串
+     */
+    getDetailedDateDesc(event) {
+        let dateStr = this.formatEventDate(event);
+        if (event.era) return `${dateStr} (${event.era})`;
+        return dateStr;
     }
 
     /**
@@ -738,7 +806,7 @@ class TimelineApp {
         this.render();
 
         // 填充详情面板
-        document.getElementById('detailYear').textContent = event.year + (event.era ? ` (${event.era})` : '');
+        document.getElementById('detailYear').textContent = this.getDetailedDateDesc(event);
         document.getElementById('detailTitle').textContent = event.title;
         document.getElementById('detailDesc').textContent = event.desc || '暂无简介';
         document.getElementById('detailContent').textContent = event.detail || '暂无详细信息';

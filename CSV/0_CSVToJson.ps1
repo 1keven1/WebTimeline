@@ -40,6 +40,8 @@ try {
     $JsonArray = foreach ($Row in $Data) {
         [PSCustomObject]@{
             year       = if ($Row.Year -match '^\d+$') { [int]$Row.Year } else { $Row.Year }
+            month      = if ($Row.Month -match '^\d+$') { [int]$Row.Month } else { $Row.Month }
+            day       = if ($Row.Day -match '^\d+$') { [int]$Row.Day } else { $Row.Day }
             title      = $Row.Title
             label      = $Row.Lable
             importance = if ($Row.Importance -match '^\d+$') { [int]$Row.Importance } else { 0 }

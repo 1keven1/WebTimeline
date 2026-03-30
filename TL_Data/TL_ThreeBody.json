@@ -1,6 +1,8 @@
 [
     {
         "year": 1453,
+        "month": 5,
+        "day": 3,
         "title": "四维空间接触地球",
         "label": "",
         "importance": 0,
@@ -10,6 +12,8 @@
     },
     {
         "year": 1947,
+        "month": 6,
+        "day": "",
         "title": "叶文洁出生",
         "label": "",
         "importance": 0,
@@ -19,6 +23,8 @@
     },
     {
         "year": 1967,
+        "month": "",
+        "day": "",
         "title": "叶泰哲之死",
         "label": "",
         "importance": 0,
@@ -28,6 +34,8 @@
     },
     {
         "year": 1968,
+        "month": "",
+        "day": "",
         "title": "红岸基地建成",
         "label": "",
         "importance": 0,
@@ -37,6 +45,8 @@
     },
     {
         "year": 1969,
+        "month": "",
+        "day": "",
         "title": "叶文洁进入红岸",
         "label": "",
         "importance": 1,
@@ -46,6 +56,8 @@
     },
     {
         "year": 1971,
+        "month": "",
+        "day": "",
         "title": "叶文洁发送信号",
         "label": "",
         "importance": 2,
@@ -55,6 +67,8 @@
     },
     {
         "year": 1975,
+        "month": "",
+        "day": "",
         "title": "三体世界收到信号",
         "label": "",
         "importance": 0,
@@ -64,6 +78,8 @@
     },
     {
         "year": 1979,
+        "month": 10,
+        "day": 21,
         "title": "收到三体回复",
         "label": "",
         "importance": 2,
@@ -73,6 +89,8 @@
     },
     {
         "year": 1980,
+        "month": 6,
+        "day": "",
         "title": "杨冬出生",
         "label": "",
         "importance": 0,
@@ -82,6 +100,8 @@
     },
     {
         "year": 1982,
+        "month": "",
+        "day": "",
         "title": "三体舰队启航",
         "label": "",
         "importance": 1,
@@ -91,6 +111,8 @@
     },
     {
         "year": 1984,
+        "month": "",
+        "day": "",
         "title": "智子工程启动",
         "label": "",
         "importance": 0,
@@ -100,6 +122,8 @@
     },
     {
         "year": 2007,
+        "month": "",
+        "day": "",
         "title": "危机纪元开始",
         "label": "",
         "importance": 0,
@@ -109,6 +133,8 @@
     },
     {
         "year": 2010,
+        "month": "",
+        "day": "",
         "title": "面壁计划启动",
         "label": "",
         "importance": 1,
@@ -118,6 +144,8 @@
     },
     {
         "year": 2015,
+        "month": "",
+        "day": "",
         "title": "罗辑发出咒语",
         "label": "",
         "importance": 0,
@@ -127,6 +155,8 @@
     },
     {
         "year": 2205,
+        "month": "",
+        "day": "",
         "title": "水滴攻击",
         "label": "",
         "importance": 0,
@@ -136,6 +166,8 @@
     },
     {
         "year": 2208,
+        "month": "",
+        "day": "",
         "title": "建立威慑",
         "label": "",
         "importance": 0,
@@ -145,6 +177,8 @@
     },
     {
         "year": 2270,
+        "month": 11,
+        "day": 28,
         "title": "威慑终结",
         "label": "",
         "importance": 0,
@@ -154,6 +188,8 @@
     },
     {
         "year": 2274,
+        "month": "",
+        "day": "",
         "title": "三体世界毁灭",
         "label": "",
         "importance": 0,
@@ -163,6 +199,8 @@
     },
     {
         "year": 2400,
+        "month": "",
+        "day": "",
         "title": "太阳系毁灭",
         "label": "",
         "importance": 1,
