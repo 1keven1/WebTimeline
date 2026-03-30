@@ -410,7 +410,6 @@ body {
 .view-options {
     display: flex;
     gap: 8px;
-    margin-left: auto;
 }
 
 /* 时间轴画布 */

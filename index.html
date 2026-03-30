@@ -11,7 +11,7 @@
 <body>
     <!-- 顶部导航 -->
     <header class="header">
-        <div class="logo">📚 Timeline Visualizer</div>
+        <div class="logo"> Timeline Visualizer </div>
 
         <div class="control-group">
             <button class="btn btn-secondary" onclick="app.newTimeline()">
@@ -46,18 +46,11 @@
         <!-- 时间轴视图 -->
         <main class="timeline-view">
             <div class="toolbar">
-                <div class="zoom-controls">
-                    <button class="zoom-btn" onclick="app.zoomOut()">−</button>
-                    <span class="zoom-level" id="zoomLevel">100%</span>
-                    <button class="zoom-btn" onclick="app.zoomIn()">+</button>
-                </div>
-                <button class="btn btn-secondary" onclick="app.resetView()">
-                    <span>⌂</span> 重置视图
-                </button>
                 <div class="view-options">
-                    <button class="btn btn-secondary" onclick="app.previousEvent()">← 上一个</button>
-                    <button class="btn btn-secondary" onclick="app.nextEvent()">下一个 →</button>
+                    <button class="btn btn-secondary" onclick="app.previousEvent()">← 上一事件</button>
+                    <button class="btn btn-secondary" onclick="app.nextEvent()">下一事件 →</button>
                 </div>
+                <button class="btn btn-secondary" onclick="app.resetView()"> 重置视图 </button>
             </div>
 
             <div class="canvas-container" id="canvasContainer">

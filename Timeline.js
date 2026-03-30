@@ -1,6 +1,6 @@
 'use strict'
 const MIN_LABEL_SPACING = 25; // 标签间最小像素间距
-const PADDING_AMOUNT = 0.02; // 年份范围的留白
+const PADDING_AMOUNT = 0.05; // 年份范围的留白
 const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
 const TIMELINE_INDEX = [
     {
@@ -23,7 +23,6 @@ class TimelineApp {
     constructor() {
         this.timelines = []; // {id, title, events, color, category}
         this.activeTimelines = new Set();
-        this.currentZoom = 1;
         this.minYear = 0;
         this.maxYear = 10000;
         this.viewStart = 1453;
@@ -53,15 +52,17 @@ class TimelineApp {
     init() {
         this.setupEventListeners();
         this.setupRangeSlider();
-        this.renderSidebar();
-        this.renderCategories();
         this.resizeCanvas();
 
         // 加载时间轴数据
         this.loadData().then(() => {
+            // 生成侧边栏
+            this.renderSidebar();
             // 默认激活三体时间轴
             const threeBody = this.timelines.find(t => t.id === 'three-body');
             if (threeBody) this.toggleTimeline(threeBody.id);
+            // 生成类别标签
+            this.renderCategories();
         })
     }
 
@@ -106,6 +107,7 @@ class TimelineApp {
         });
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+
         // 在Window上监听mouseup，防止无法取消拖拽
         window.addEventListener('mouseup', () => this.handleMouseUp());
         this.container.addEventListener('wheel', (e) => this.handleWheel(e));
@@ -272,7 +274,8 @@ class TimelineApp {
             this.activeTimelines.clear();
             this.timelines.filter(t => t.category === category).forEach(t => this.activeTimelines.add(t.id));
         }
-
+        
+        this.resetView();
         this.renderSidebar();
         this.render();
     }
@@ -709,24 +712,6 @@ class TimelineApp {
     closeDetail() {
         document.getElementById('detailPanel').classList.remove('open');
         this.selectedEvent = null;
-        this.render();
-    }
-
-    zoomIn() {
-        const center = (this.viewStart + this.viewEnd) / 2;
-        const span = (this.viewEnd - this.viewStart) * 0.8;
-        this.viewStart = center - span / 2;
-        this.viewEnd = center + span / 2;
-        this.updateRangeSlider();
-        this.render();
-    }
-
-    zoomOut() {
-        const center = (this.viewStart + this.viewEnd) / 2;
-        const span = (this.viewEnd - this.viewStart) * 1.25;
-        this.viewStart = Math.max(this.minYear, center - span / 2);
-        this.viewEnd = Math.min(this.maxYear, center + span / 2);
-        this.updateRangeSlider();
         this.render();
     }
 
