@@ -2,6 +2,16 @@
 const MIN_LABEL_SPACING = 25; // 标签间最小像素间距
 const PADDING_AMOUNT = 0.05; // 年份范围的留白
 const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
+const TIMELINE_WIDTH = 4; // 时间轴线条宽度
+const YEARSCALE_100_COLOR = '#46566b';
+const YEARSCALE_100_WIDTH = 1.5;
+const YEARSCALE_100_FONT = 'bold 14px sans-serif';
+const YEARSCALE_COLOR = '#334155';
+const YEARSCALE_WIDTH = 1;
+const YEARSCALE_FONT = '11px sans-serif';
+const CURRENT_YEAR_COLOR = '#facc15';
+const CURRENT_YEAR_WIDTH = 2;
+const CURRENT_YEAR_FONT = 'bold 14px sans-serif';
 
 /**
  * 时间轴中的事件对象结构体
@@ -58,6 +68,7 @@ class TimelineApp {
         this.selectedEvent = null;
         this.lastMouseX = 0;
         this.editingId = null;
+        this.contextMenuTimelineId = null;
 
         // 拖拽相关
         this.dragging = false;
@@ -133,17 +144,18 @@ class TimelineApp {
                 this.render(); // 会重新渲染DOM，移除active类
             }
         });
-        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        // 鼠标移动（更新坐标并处理拖拽）
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            this.mouseX = e.clientX - rect.left;
+            this.mouseY = e.clientY - rect.top;
+            this.handleMouseMove(e);
+        });
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
 
         // 在Window上监听mouseup，防止无法取消拖拽
         window.addEventListener('mouseup', () => this.handleMouseUp());
         this.container.addEventListener('wheel', (e) => this.handleWheel(e));
-        this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            this.mouseX = e.clientX - rect.left;
-            this.mouseY = e.clientY - rect.top;
-        });
 
         // 窗口调整
         window.addEventListener('resize', () => {
@@ -156,6 +168,13 @@ class TimelineApp {
             if (e.key === 'Escape') this.closeDetail();
             if (e.key === 'ArrowLeft') this.previousEvent();
             if (e.key === 'ArrowRight') this.nextEvent();
+        });
+
+        // 点击其他地方关闭右键菜单
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.context-menu')) {
+                this.hideContextMenu();
+            }
         });
 
         // 当鼠标重新进入窗口时，检查左键是否已释放（按钮状态为0表示未按下）
@@ -262,7 +281,10 @@ class TimelineApp {
                 </div>
             `;
             item.onclick = () => this.toggleTimeline(timeline.id);
-            item.ondblclick = () => this.editTimeline(timeline.id);
+            item.oncontextmenu = (e) => {
+                e.preventDefault();
+                this.showContextMenu(e, timeline.id);
+            };
             list.appendChild(item);
         });
     }
@@ -291,6 +313,32 @@ class TimelineApp {
         // 如果从空状态变为有内容，自动适配范围（带padding）
         if (wasEmpty && this.activeTimelines.size > 0) this.resetView();
         else this.render();
+    }
+
+    /**
+     * 切换侧边栏收起/展开
+     */
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebarToggle');
+        sidebar.classList.toggle('collapsed');
+        toggleBtn.classList.toggle('collapsed');
+        
+        // 动画期间持续重绘以保持流畅
+        const startTime = performance.now();
+        // 从 CSS 变量读取动画时长，保持与 CSS 同步
+        const duration = parseInt(getComputedStyle(document.documentElement)
+            .getPropertyValue('--sidebar-animation-duration')) || 300;
+        
+        const animate = (now) => {
+            const elapsed = now - startTime;
+            this.resizeCanvas();
+            this.render();
+            if (elapsed < duration) {
+                requestAnimationFrame(animate);
+            }
+        };
+        requestAnimationFrame(animate);
     }
 
     filterCategory(category) {
@@ -367,10 +415,6 @@ class TimelineApp {
         const centerY = y + trackHeight / 2;
         const color = timeline.color;
 
-        // 绘制轨道背景
-        ctx.fillStyle = trackIndex % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.02)';
-        ctx.fillRect(0, y, width, trackHeight);
-
         // 绘制轨道标签
         ctx.fillStyle = color;
         ctx.font = 'bold 14px sans-serif';
@@ -378,7 +422,7 @@ class TimelineApp {
 
         // 绘制时间线
         ctx.strokeStyle = color;
-        ctx.lineWidth = 4;
+        ctx.lineWidth = TIMELINE_WIDTH;
         ctx.beginPath();
         ctx.moveTo(0, centerY);
         ctx.lineTo(width, centerY);
@@ -406,7 +450,12 @@ class TimelineApp {
         });
     }
 
-
+    /**
+     * 使用Canvas绘制年份刻度 + 当前时间刻度
+     * @param {CanvasRenderingContext2D} ctx 
+     * @param {Number} width 视口宽度
+     * @param {Number} height 视口高度
+     */
     renderTimeScale(ctx, width, height) {
         const timeSpan = this.viewEnd - this.viewStart;
         const step = this.calculateTimeStep(timeSpan);
@@ -416,8 +465,8 @@ class TimelineApp {
             const x = ((t - this.viewStart) / timeSpan) * width;
 
             // 刻度线
-            ctx.strokeStyle = t % 100 === 0 ? '#46566b' : '#334155';
-            ctx.lineWidth = t % 100 === 0 ? 1.5 : 1;
+            ctx.strokeStyle = t % 100 === 0 ? YEARSCALE_100_COLOR : YEARSCALE_COLOR;
+            ctx.lineWidth = t % 100 === 0 ? YEARSCALE_100_WIDTH : YEARSCALE_WIDTH;
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
@@ -425,29 +474,38 @@ class TimelineApp {
 
             // 年份标签
             ctx.fillStyle = '#64748b';
-            ctx.font = t % 100 === 0 ? 'bold 14px sans-serif' : '11px sans-serif';
+            ctx.font = Math.floor(t) % 100 === 0 ? YEARSCALE_100_FONT : YEARSCALE_FONT;
             ctx.textAlign = 'center';
-            ctx.fillText(t.toString(), x, height - 10);
+            // 小数部分转换为月份显示
+            const year = Math.floor(t);
+            const fraction = t - year;
+            if (fraction > 0.001) {
+                const month = Math.min(11, Math.floor(fraction * 12));
+                ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, height - 10);
+            } else {
+                ctx.fillText(year.toString(), x, height - 10);
+            }
         }
 
         // 绘制当前时间刻度（亮黄色）
-        const currentYear = new Date().getFullYear();
-        if (currentYear >= this.viewStart && currentYear <= this.viewEnd) {
-            const x = ((currentYear - this.viewStart) / timeSpan) * width;
+        const currentEvent = new MyEvent(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+        const currentDecimalYear = this.getDecimalYear(currentEvent);
+        if (currentDecimalYear >= this.viewStart && currentDecimalYear <= this.viewEnd) {
+            const x = ((currentDecimalYear - this.viewStart) / timeSpan) * width;
             
-            // 亮黄色刻度线
-            ctx.strokeStyle = '#facc15'; // 亮黄色
-            ctx.lineWidth = 2;
+            // 刻度线
+            ctx.strokeStyle = CURRENT_YEAR_COLOR; 
+            ctx.lineWidth = CURRENT_YEAR_WIDTH;
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
             ctx.stroke();
             
             // 当前年份标签
-            ctx.fillStyle = '#facc15';
-            ctx.font = 'bold 14px sans-serif';
+            ctx.fillStyle = CURRENT_YEAR_COLOR;
+            ctx.font = CURRENT_YEAR_FONT;
             ctx.textAlign = 'center';
-            ctx.fillText(currentYear.toString(), x, height - 10);
+            ctx.fillText(this.formatEventDate(currentEvent), x, height - 10);
         }
 
         ctx.textAlign = 'left';
@@ -678,7 +736,7 @@ class TimelineApp {
             // 检测是否移动超过阈值
             const dx = Math.abs(e.clientX - this.dragStartX);
             const dy = Math.abs(e.clientY - this.dragStartY);
-            if (dx > this.DRAG_THRESHOLD || dy > this.DRAG_THRESHOLD) {
+            if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
                 this.hasDragged = true;
             }
 
@@ -746,9 +804,7 @@ class TimelineApp {
             newSpan = maxSpan;
         }
         // 限制最小缩放范围（避免过度放大，最少显示5年）
-        if (newSpan < 5) {
-            newSpan = 5;
-        }
+        if (newSpan < 5) newSpan = 5;
 
         // 计算鼠标位置在视口中的比例（0到1之间）
         const ratio = mouseX / width;
@@ -827,21 +883,8 @@ class TimelineApp {
     resetView() {
         if (this.activeTimelines.size === 0) return;
 
-        // 计算所有激活时间轴的事件范围
-        let min = Infinity;
-        let max = -Infinity;
-        this.timelines
-            .filter(t => this.activeTimelines.has(t.id))
-            .forEach(t => {
-                t.events.forEach(e => {
-                    if (e.year < min) min = e.year;
-                    if (e.year > max) max = e.year;
-                });
-            });
-
-        const padding = (max - min) * PADDING_AMOUNT;
-        this.minYear = Math.floor(min - padding);
-        this.maxYear = Math.ceil(max + padding);
+        // 计算并设置视图范围
+        this.updateMinMaxFromActiveTimelines();
         this.viewStart = this.minYear;
         this.viewEnd = this.maxYear;
 
@@ -952,6 +995,41 @@ class TimelineApp {
             this.render();
             this.showToast('已删除');
         }
+    }
+
+    // 右键菜单相关方法
+    showContextMenu(e, timelineId) {
+        this.contextMenuTimelineId = timelineId;
+        const menu = document.getElementById('contextMenu');
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+        menu.classList.add('active');
+    }
+
+    hideContextMenu() {
+        this.contextMenuTimelineId = null;
+        document.getElementById('contextMenu').classList.remove('active');
+    }
+
+    editFromContextMenu() {
+        if (this.contextMenuTimelineId) {
+            this.editTimeline(this.contextMenuTimelineId);
+            this.hideContextMenu();
+        }
+    }
+
+    deleteFromContextMenu() {
+        if (!this.contextMenuTimelineId) return;
+
+        if (confirm('确定要删除这个时间轴吗？')) {
+            this.timelines = this.timelines.filter(t => t.id !== this.contextMenuTimelineId);
+            this.activeTimelines.delete(this.contextMenuTimelineId);
+            this.renderSidebar();
+            this.renderCategories();
+            this.render();
+            this.showToast('已删除');
+        }
+        this.hideContextMenu();
     }
 
     closeModal() {

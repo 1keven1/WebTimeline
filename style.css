@@ -12,6 +12,7 @@
     --border-color: #475569;
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+    --sidebar-animation-duration: 300ms;
 }
 
 * {
@@ -121,7 +122,62 @@ body {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    position: relative;
+    transition: width var(--sidebar-animation-duration) ease;
+    flex-shrink: 0;
+}
+
+.sidebar.collapsed {
+    width: 0;
+}
+
+.sidebar-toggle {
+    position: fixed;
+    left: 280px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 60px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 10px;
+    z-index: 100;
+    transition: left var(--sidebar-animation-duration) ease;
+}
+
+.sidebar-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.sidebar-toggle.collapsed {
+    left: 0;
+}
+
+.sidebar-toggle.collapsed .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.toggle-icon {
+    display: inline-block;
+}
+
+.sidebar-header,
+.timeline-list {
+    transition: opacity 0.2s ease;
+}
+
+.sidebar.collapsed .sidebar-header,
+.sidebar.collapsed .timeline-list {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .sidebar-header {
@@ -253,12 +309,9 @@ body {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     visibility: visible;
     opacity: 1;
-    transition: opacity 0.15s ease, visibility 0.15s;
-    /* 确保标签本身可以交互 */
     pointer-events: auto;
-    /* 动画 */
-    transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
-    /* 设置变换原点为顶部中心，这样放大时会向下扩展，而不是向四周 */
+    /* 动画与变换原点 */
+    transition: opacity 0.15s ease, visibility 0.15s, transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
     transform-origin: top center;
     /* 给背景色建立一个向上的1像素溢出，防止缩放时出现细线 */
     border-top: 1px solid var(--timeline-color);
@@ -838,6 +891,52 @@ body {
 
 .empty-state-text {
     font-size: 16px;
+}
+
+/* 右键菜单 */
+.context-menu {
+    position: fixed;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 120px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    z-index: 2000;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.context-menu.active {
+    display: flex;
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s ease;
+}
+
+.context-menu-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.context-menu-delete {
+    color: var(--accent-rose);
+}
+
+.context-menu-delete:hover {
+    background: rgba(244, 63, 94, 0.15);
+}
+
+.context-menu-icon {
+    font-size: 14px;
 }
 
 /* 滚动条样式 */
