@@ -602,7 +602,7 @@ class TimelineApp {
                 <div class="event-label">${event.label || event.title}</div>
                 <div class="event-popup">
                     <div class="year">${this.formatEventDate(event)}</div>
-                    <div class="title">${event.desc}</div>
+                    <div class="title">${event.desc || event.title}</div>
                     ${event.era ? `<div class="era">[${event.era}]</div>` : ''}
                 </div>
             `;
