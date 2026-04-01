@@ -645,20 +645,25 @@ class TimelineApp {
 
     /**
      * 将 year/month/day 转换为小数年份,如：1979年10月21日 → 1979.805
+     * 支持负数月份/日期（如 -6）：用于偏移计算但不显示
      * @param {MyEvent} event 事件对象，包含 year, month, day
      * @return {Number} 转换后的小数年份
      */
     getDecimalYear(event) {
         if (!event.month || event.month === '') return event.year;
 
+        // 处理负数月份（用于偏移但不显示）
+        const month = Math.abs(event.month);
+
         // 月份转换为年的小数：1月=0, 12月≈0.92
-        const monthFraction = (event.month - 1) / 12;
+        const monthFraction = (month - 1) / 12;
 
         // 日期转换为月的小数，再转为年的小数
         let dayFraction = 0;
         if (event.day && event.day !== '') {
-            const daysInMonth = new Date(event.year, event.month, 0).getDate(); // 获取该月总天数
-            dayFraction = (event.day - 1) / daysInMonth / 12;
+            const day = Math.abs(event.day);
+            const daysInMonth = new Date(event.year, month, 0).getDate(); // 获取该月总天数
+            dayFraction = (day - 1) / daysInMonth / 12;
         }
 
         return event.year + monthFraction + dayFraction;
@@ -666,12 +671,16 @@ class TimelineApp {
 
     /**
      * 格式化显示日期，如 "1979.10.21" 或 "1979.10" 或 "1979"
+     * 支持负数月份/日期（如 -6）：只进行偏移计算但不显示
      * @param {MyEvent} event 事件对象，包含 year, month, day
      * @returns {String} 格式化后的日期字符串，如 "1979.10.21" 或 "1979.10" 或 "1979"
      */
     formatEventDate(event) {
-        if (!event.month || event.month === '') return event.year.toString();
-        if (!event.day || event.day === '') return `${event.year}.${event.month.toString().padStart(2, '0')}`;
+        // 无月份或月份为负数（用于偏移但不显示）时，只显示年份
+        if (!event.month || event.month === '' || event.month < 0) return event.year.toString();
+        // 有月份但无日期或日期为负数时，显示年.月
+        if (!event.day || event.day === '' || event.day < 0) return `${event.year}.${event.month.toString().padStart(2, '0')}`;
+        // 有月份和正数日期时，显示年.月.日
         return `${event.year}.${event.month.toString().padStart(2, '0')}.${event.day.toString().padStart(2, '0')}`;
     }
 

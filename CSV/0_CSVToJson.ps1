@@ -36,15 +36,15 @@ try {
     $Data = Import-Csv -Path $InputFile -Encoding UTF8
     Write-Host "读取到 $($Data.Count) 行数据" -ForegroundColor Gray
 
-    # 构建对象数组
+    # 构建对象数组（月与日可能为负数，重要性默认为0）
     $JsonArray = foreach ($Row in $Data) {
         [PSCustomObject]@{
             year       = if ($Row.Year -match '^\d+$') { [int]$Row.Year } else { $Row.Year }
-            month      = if ($Row.Month -match '^\d+$') { [int]$Row.Month } else { $Row.Month }
-            day       = if ($Row.Day -match '^\d+$') { [int]$Row.Day } else { $Row.Day }
+            month      = if ($Row.Month -match '^-?\d+$') { [int]$Row.Month } else { $Row.Month }
+            day       = if ($Row.Day -match '^-?\d+$') { [int]$Row.Day } else { $Row.Day }
             title      = $Row.Title
             label      = $Row.Lable
-            importance = if ($Row.Importance -match '^\d+$') { [int]$Row.Importance } else { 0 }
+            importance = if ($Row.Importance -match '^-?\d+$') { [int]$Row.Importance } else { 0 }
             desc       = $Row.Desc
             detail     = $Row.Detail
             era        = $Row.Era

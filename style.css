@@ -305,7 +305,7 @@ body {
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
-    max-height: 140px;
+    max-height: 150px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     visibility: visible;
     opacity: 1;
