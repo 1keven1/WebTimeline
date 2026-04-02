@@ -9,9 +9,9 @@ const TIMELINE_INDEX = [
     },
     {
         id: 'quantum-physics',
-        title: '量子力学发展史',
+        title: '物理学发展史',
         color: '#8b5cf6',
-        eventPath: './TL_Data/TL_QuantumPhysics.json',
+        eventPath: './TL_Data/TL_Physics.json',
         category: '科学史'
     }
 ];
