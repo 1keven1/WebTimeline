@@ -3,9 +3,10 @@ const MIN_LABEL_SPACING = 25; // 标签间最小像素间距
 const PADDING_AMOUNT = 0.05; // 年份范围的留白
 const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
 const TIMELINE_WIDTH = 4; // 时间轴线条宽度
-const YEARSCALE_100_COLOR = '#46566b';
-const YEARSCALE_100_WIDTH = 1.5;
-const YEARSCALE_100_FONT = 'bold 14px sans-serif';
+const MIN_YEAR_SPAN = 3; // 最小视图跨度（年），避免过度放大
+const YEARSCALE_BOLD_COLOR = '#46566b';
+const YEARSCALE_BOLD_WIDTH = 1.5;
+const YEARSCALE_BOLD_FONT = 'bold 14px sans-serif';
 const YEARSCALE_COLOR = '#334155';
 const YEARSCALE_WIDTH = 1;
 const YEARSCALE_FONT = '11px sans-serif';
@@ -69,6 +70,7 @@ class TimelineApp {
         this.lastMouseX = 0;
         this.editingId = null;
         this.contextMenuTimelineId = null;
+        this.showCurrentTime = true; // 是否显示当前时间刻度
 
         // 拖拽相关
         this.dragging = false;
@@ -90,6 +92,7 @@ class TimelineApp {
         this.setupEventListeners();
         this.setupRangeSlider();
         this.initTheme();
+        this.initCurrentTimeToggle();
         this.resizeCanvas();
 
         // 加载时间轴数据
@@ -232,14 +235,20 @@ class TimelineApp {
             let percent = ((e.clientX - rect.left) / rect.width) * 100;
             percent = Math.max(0, Math.min(100, percent));
 
+            // 计算最小百分比跨度（对应MIN_YEAR_SPAN年）
+            const totalSpan = this.maxYear - this.minYear;
+            const minPercentSpan = totalSpan > 0 ? (MIN_YEAR_SPAN / totalSpan) * 100 : 5;
+
             if (isDragging === 'left') {
                 const right = parseFloat(rightHandle.style.left);
-                if (percent < right - 5) {
+                // 限制最小年份跨度
+                if (percent < right - minPercentSpan) {
                     leftHandle.style.left = percent + '%';
                 }
             } else if (isDragging === 'right') {
                 const left = parseFloat(leftHandle.style.left);
-                if (percent > left + 5) {
+                // 限制最小年份跨度
+                if (percent > left + minPercentSpan) {
                     rightHandle.style.left = percent + '%';
                 }
             }
@@ -302,7 +311,7 @@ class TimelineApp {
         const filter = document.getElementById('categoryFilter');
         const categories = [...new Set(this.timelines.map(t => t.category))];
 
-        filter.innerHTML = '<span class="category-tag active" onclick="app.filterCategory(\'all\')">全部</span>';
+        filter.innerHTML = '<span class="category-tag" onclick="app.filterCategory(\'all\')">全部</span>';
         categories.forEach(cat => {
             filter.innerHTML += `<span class="category-tag" onclick="app.filterCategory('${cat}')">${cat}</span>`;
         });
@@ -385,11 +394,33 @@ class TimelineApp {
         themeText.textContent = '日间';
     }
 
-    filterCategory(category) {
-        document.querySelectorAll('.category-tag').forEach(tag => {
-            tag.classList.toggle('active', tag.textContent === (category === 'all' ? '全部' : category));
-        });
+    /**
+     * 初始化当前时间刻度按钮状态
+     */
+    initCurrentTimeToggle() {
+        const btn = document.getElementById('currentTimeToggle');
+        if (this.showCurrentTime && btn) {
+            btn.classList.add('active');
+        }
+    }
 
+    /**
+     * 切换当前时间刻度显示
+     */
+    toggleCurrentTime() {
+        this.showCurrentTime = !this.showCurrentTime;
+        const btn = document.getElementById('currentTimeToggle');
+        
+        if (this.showCurrentTime) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+        
+        this.render();
+    }
+
+    filterCategory(category) {
         if (category === 'all') {
             this.timelines.forEach(t => this.activeTimelines.add(t.id));
         } else {
@@ -504,52 +535,68 @@ class TimelineApp {
         const timeSpan = this.viewEnd - this.viewStart;
         const step = this.calculateTimeStep(timeSpan);
 
+        // 根据视图范围动态决定重要刻度间隔（粗线）
+        let majorStep;
+        if (timeSpan > 2000) majorStep = 1000;
+        else if (timeSpan > 1000) majorStep = 500;
+        else if (timeSpan > 200) majorStep = 100;
+        else if(timeSpan > 100) majorStep = 50;
+        else majorStep = 10;
+
         // 绘制主刻度
         for (let t = Math.ceil(this.viewStart / step) * step; t <= this.viewEnd; t += step) {
             const x = ((t - this.viewStart) / timeSpan) * width;
 
+            // 判断是否为重要刻度（粗线）
+            const isMajor = Math.round(t) % majorStep === 0;
+
             // 刻度线
-            ctx.strokeStyle = t % 100 === 0 ? YEARSCALE_100_COLOR : YEARSCALE_COLOR;
-            ctx.lineWidth = t % 100 === 0 ? YEARSCALE_100_WIDTH : YEARSCALE_WIDTH;
+            ctx.strokeStyle = isMajor ? YEARSCALE_BOLD_COLOR : YEARSCALE_COLOR;
+            ctx.lineWidth = isMajor ? YEARSCALE_BOLD_WIDTH : YEARSCALE_WIDTH;
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
             ctx.stroke();
 
-            // 年份标签
-            ctx.fillStyle = '#64748b';
-            ctx.font = Math.floor(t) % 100 === 0 ? YEARSCALE_100_FONT : YEARSCALE_FONT;
-            ctx.textAlign = 'center';
-            // 小数部分转换为月份显示
-            const year = Math.floor(t);
-            const fraction = t - year;
-            if (fraction > 0.001) {
-                const month = Math.min(11, Math.floor(fraction * 12));
-                ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, height - 10);
-            } else {
-                ctx.fillText(year.toString(), x, height - 10);
+            // 年份标签（只在重要刻度或间隔足够大时显示）
+            const showLabel = isMajor || (step >= 10 && Math.round(t) % Math.max(1, Math.floor(majorStep / 10)) === 0);
+            if (showLabel) {
+                ctx.fillStyle = isMajor ? '#94a3b8' : '#64748b';
+                ctx.font = isMajor ? YEARSCALE_BOLD_FONT : YEARSCALE_FONT;
+                ctx.textAlign = 'center';
+                // 小数部分转换为月份显示
+                const year = Math.floor(t);
+                const fraction = t - year;
+                if (fraction > 0.001) {
+                    const month = Math.min(11, Math.floor(fraction * 12));
+                    ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, height - 10);
+                } else {
+                    ctx.fillText(year.toString(), x, height - 10);
+                }
             }
         }
 
-        // 绘制当前时间刻度（亮黄色）
-        const currentEvent = new MyEvent(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
-        const currentDecimalYear = this.getDecimalYear(currentEvent);
-        if (currentDecimalYear >= this.viewStart && currentDecimalYear <= this.viewEnd) {
-            const x = ((currentDecimalYear - this.viewStart) / timeSpan) * width;
-            
-            // 刻度线
-            ctx.strokeStyle = CURRENT_YEAR_COLOR; 
-            ctx.lineWidth = CURRENT_YEAR_WIDTH;
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-            
-            // 当前年份标签
-            ctx.fillStyle = CURRENT_YEAR_COLOR;
-            ctx.font = CURRENT_YEAR_FONT;
-            ctx.textAlign = 'center';
-            ctx.fillText(this.formatEventDate(currentEvent), x, height - 10);
+        // 绘制当前时间刻度
+        if (this.showCurrentTime) {
+            const currentEvent = new MyEvent(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+            const currentDecimalYear = this.getDecimalYear(currentEvent);
+            if (currentDecimalYear >= this.viewStart && currentDecimalYear <= this.viewEnd) {
+                const x = ((currentDecimalYear - this.viewStart) / timeSpan) * width;
+                
+                // 刻度线
+                ctx.strokeStyle = CURRENT_YEAR_COLOR; 
+                ctx.lineWidth = CURRENT_YEAR_WIDTH;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+                
+                // 当前年份标签
+                ctx.fillStyle = CURRENT_YEAR_COLOR;
+                ctx.font = CURRENT_YEAR_FONT;
+                ctx.textAlign = 'center';
+                ctx.fillText(this.formatEventDate(currentEvent), x, height - 10);
+            }
         }
 
         ctx.textAlign = 'left';
@@ -787,7 +834,6 @@ class TimelineApp {
      */
     calculateTimeStep(span) {
         // TODO: 更新算法
-        if (span > 10000) return 1000;
         if (span > 5000) return 500;
         if (span > 1000) return 100;
         if (span > 500) return 50;
@@ -869,8 +915,8 @@ class TimelineApp {
         if (newSpan > maxSpan) {
             newSpan = maxSpan;
         }
-        // 限制最小缩放范围（避免过度放大，最少显示5年）
-        if (newSpan < 5) newSpan = 5;
+        // 限制最小缩放范围（避免过度放大）
+        if (newSpan < MIN_YEAR_SPAN) newSpan = MIN_YEAR_SPAN;
 
         // 计算鼠标位置在视口中的比例（0到1之间）
         const ratio = mouseX / width;

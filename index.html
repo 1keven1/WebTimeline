@@ -14,7 +14,7 @@
         <div class="logo"> 时间轴可视化工具 </div>
 
         <div class="control-group">
-            <button class="btn btn-secondary" onclick="app.newTimeline()">
+            <!-- <button class="btn btn-secondary" onclick="app.newTimeline()">
                 <span>➕</span> 新建时间轴
             </button>
             <button class="btn btn-secondary" onclick="app.importData()">
@@ -22,7 +22,7 @@
             </button>
             <button class="btn btn-secondary" onclick="app.exportData()">
                 <span>📤</span> 导出
-            </button>
+            </button> -->
             <button class="btn btn-secondary" id="themeToggle" onclick="app.toggleTheme()" title="切换日夜模式">
                 <span id="themeIcon">☀️</span> <span id="themeText">日间</span>
             </button>
@@ -54,11 +54,10 @@
         <!-- 时间轴视图 -->
         <main class="timeline-view">
             <div class="toolbar">
-                <div class="view-options">
-                    <button class="btn btn-secondary" onclick="app.previousEvent()">← 上一事件</button>
-                    <button class="btn btn-secondary" onclick="app.nextEvent()">下一事件 →</button>
-                </div>
                 <button class="btn btn-secondary" onclick="app.resetView()"> 重置视图 </button>
+                <button class="btn btn-secondary" id="currentTimeToggle" onclick="app.toggleCurrentTime()" title="显示/隐藏当前时间刻度">
+                   当前时间
+                </button>
             </div>
 
             <div class="canvas-container" id="canvasContainer">
@@ -119,6 +118,15 @@
                 <span class="detail-meta-label">纪元/时期</span>
                 <span class="detail-meta-value" id="detailEra">-</span>
             </div>
+        </div>
+        <!-- 事件导航按钮 -->
+        <div class="detail-nav">
+            <button class="btn btn-secondary" onclick="app.previousEvent()">
+                <span>←</span> 上一事件
+            </button>
+            <button class="btn btn-secondary" onclick="app.nextEvent()">
+                下一事件 <span>→</span>
+            </button>
         </div>
     </div>
 
