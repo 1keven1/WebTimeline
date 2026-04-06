@@ -86,19 +86,28 @@ class TimelineApp {
         this.init(timelineIndex, defaultTimelineId);
     }
 
-    init(timelineIndex, defaultTimelineId) {
+    init(timelineIndex, defaultTimelineIds) {
         this.setupEventListeners();
         this.setupRangeSlider();
+        this.initTheme();
         this.resizeCanvas();
 
         // 加载时间轴数据
         this.loadData(timelineIndex).then(() => {
             // 生成侧边栏
             this.renderSidebar();
-            // 默认激活时间轴
-            if (this.timelines.find(t => t.id === defaultTimelineId)) {
-                this.toggleTimeline(defaultTimelineId);
+            // 默认激活时间轴（支持单个字符串或数组）
+            const ids = Array.isArray(defaultTimelineIds) ? defaultTimelineIds : [defaultTimelineIds];
+            ids.forEach(id => {
+                if (this.timelines.find(t => t.id === id)) {
+                    this.activeTimelines.add(id);
+                }
+            });
+            // 如果有激活的时间轴，重置视图并渲染
+            if (this.activeTimelines.size > 0) {
+                this.resetView();
             }
+            this.renderSidebar();
             // 生成类别标签
             this.renderCategories();
         })
@@ -339,6 +348,41 @@ class TimelineApp {
             }
         };
         requestAnimationFrame(animate);
+    }
+
+    /**
+     * 切换日夜模式
+     */
+    toggleTheme() {
+        const html = document.documentElement;
+        const themeIcon = document.getElementById('themeIcon');
+        const themeText = document.getElementById('themeText');
+        const currentTheme = html.getAttribute('data-theme');
+        
+        if (currentTheme === 'light') {
+            html.removeAttribute('data-theme');
+            themeIcon.textContent = '☀️';
+            themeText.textContent = '日间';
+        } else {
+            html.setAttribute('data-theme', 'light');
+            themeIcon.textContent = '🌙';
+            themeText.textContent = '夜间';
+        }
+        
+        // 重绘以应用新主题
+        this.render();
+    }
+
+    /**
+     * 初始化主题（默认夜间模式）
+     */
+    initTheme() {
+        const themeIcon = document.getElementById('themeIcon');
+        const themeText = document.getElementById('themeText');
+        
+        // 默认夜间模式（无需从localStorage读取）
+        themeIcon.textContent = '☀️';
+        themeText.textContent = '日间';
     }
 
     filterCategory(category) {

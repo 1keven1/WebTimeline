@@ -15,6 +15,23 @@
     --sidebar-animation-duration: 300ms;
 }
 
+/* 日间模式配色 */
+[data-theme="light"] {
+    --bg-primary: #f1f5f9;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --accent-blue: #2563eb;
+    --accent-purple: #7c3aed;
+    --accent-emerald: #059669;
+    --accent-rose: #e11d48;
+    --accent-amber: #d97706;
+    --border-color: #cbd5e1;
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
 * {
     margin: 0;
     padding: 0;
