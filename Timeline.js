@@ -672,27 +672,40 @@ class TimelineApp {
     /**
      * 格式化显示日期，如 "1979.10.21" 或 "1979.10" 或 "1979"
      * 支持负数月份/日期（如 -6）：只进行偏移计算但不显示
+     * 年份为负时显示为 "前XX年" 格式
      * @param {MyEvent} event 事件对象，包含 year, month, day
-     * @returns {String} 格式化后的日期字符串，如 "1979.10.21" 或 "1979.10" 或 "1979"
+     * @returns {String} 格式化后的日期字符串，如 "1979.10.21" 或 "前200年"
      */
     formatEventDate(event) {
+        const yearStr = event.year < 0 ? `前${-event.year}` : event.year.toString();
         // 无月份或月份为负数（用于偏移但不显示）时，只显示年份
-        if (!event.month || event.month === '' || event.month < 0) return event.year.toString();
+        if (!event.month || event.month === '' || event.month < 0) return yearStr;
         // 有月份但无日期或日期为负数时，显示年.月
-        if (!event.day || event.day === '' || event.day < 0) return `${event.year}.${event.month.toString().padStart(2, '0')}`;
+        if (!event.day || event.day === '' || event.day < 0) return `${yearStr}.${event.month.toString().padStart(2, '0')}`;
         // 有月份和正数日期时，显示年.月.日
-        return `${event.year}.${event.month.toString().padStart(2, '0')}.${event.day.toString().padStart(2, '0')}`;
+        return `${yearStr}.${event.month.toString().padStart(2, '0')}.${event.day.toString().padStart(2, '0')}`;
     }
 
     /**
-     * 获取详细日期描述，如 "1979.10.21 (公元前)" 或 "1979.10 (公元前)" 或 "1979 (公元前)"
+     * 获取详细日期描述，如 "1979.10.21" 或 "公元前200年"
+     * 年份为负时显示为 "公元前XX年" 格式
      * @param {MyEvent} event 事件对象，包含 year, month, day, era
      * @returns {String} 格式化后的日期字符串
      */
     getDetailedDateDesc(event) {
-        let dateStr = this.formatEventDate(event);
-        if (event.era) return `${dateStr} (${event.era})`;
-        return dateStr;
+        const yearStr = event.year < 0 ? `公元前${-event.year}` : event.year.toString();
+        // 无月份或月份为负数时，只显示年份
+        if (!event.month || event.month === '' || event.month < 0) {
+            return event.era ? `${yearStr} (${event.era})` : yearStr;
+        }
+        // 有月份时，显示年.月（使用阿拉伯数字年份）
+        const dateStr = `${event.year < 0 ? yearStr : yearStr}.${event.month.toString().padStart(2, '0')}`;
+        if (!event.day || event.day === '' || event.day < 0) {
+            return event.era ? `${dateStr} (${event.era})` : dateStr;
+        }
+        // 有月份和日期时，显示年.月.日
+        const fullDateStr = `${dateStr}.${event.day.toString().padStart(2, '0')}`;
+        return event.era ? `${fullDateStr} (${event.era})` : fullDateStr;
     }
 
     /**

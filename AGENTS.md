@@ -1,358 +1,383 @@
 # Timeline Visualizer - AI Agent Guide
 
-## 项目概述
+## Project Overview
 
-**Timeline Visualizer** 是一个基于浏览器的交互式时间轴可视化工具，用于展示多条时间线上的 chronological events。项目采用纯静态前端技术栈，无需构建步骤即可运行。
+**Timeline Visualizer** is an interactive web-based timeline visualization tool for displaying chronological events across multiple timelines. It uses a hybrid rendering approach combining HTML5 Canvas for timeline tracks and DOM elements for interactive event cards.
 
-项目中的代码注释、文档（`Readme.md`）和 UI 文本均以**中文**为主。
+The project is primarily documented in **Chinese** (both code comments and README).
 
-### 核心功能
-- 多时间轴并行展示，支持颜色区分与分类筛选
-- Canvas 绘制时间轴轨道与刻度，DOM 覆盖层渲染可交互事件卡片
-- 支持缩放（鼠标滚轮）、平移（拖拽）、范围选择器调整视图
-- **侧边栏可收起/展开**（带动画过渡）
-- **范围选择器**：滑块上方显示当前视口年份，下方显示整体时间范围
-- **当前时间刻度**：亮黄色标记显示当前年份
-- **月份显示**：放大时年份标签显示为 `年.月` 格式（如 2007.06）
-- 事件详情侧滑面板
-- 时间轴的增删改（通过模态框编辑 JSON 数据）
-- 数据的导入/导出（JSON 格式）
-- CSV 转 JSON 的数据预处理工具
+### Key Features
+- Multi-timeline support with color coding and categorization
+- Interactive canvas-based timeline rendering with DOM event overlays
+- Zoom (mouse wheel), pan (drag), and range selection for navigating time periods
+- Event detail panel with full information display
+- Import/Export JSON data functionality
+- Category filtering system
+- Right-click context menu for timeline editing/deletion
+- Collapsible sidebar with smooth animation
+- CSV to JSON conversion tools for data preparation
 
-### 当前内置时间轴
-- **三体** (`three-body`)：科幻文学时间轴
-- **量子力学发展史** (`quantum-physics`)：科学史时间轴
+### Current Timelines
+- **三体** (Three-Body): Science fiction literature timeline covering events from the novel series
+- **物理学发展史** (Physics History): Scientific history timeline of physics development
 
 ---
 
-## 技术栈
+## Technology Stack
 
-| 层级 | 技术 |
-|------|------|
-| 结构 | HTML5 |
-| 样式 | CSS3（CSS Variables、Flexbox） |
-| 逻辑 | 原生 JavaScript（ES6+，多 Class 架构） |
-| 渲染 | HTML5 Canvas API + DOM Overlay |
-| 数据格式 | JSON |
-| 构建系统 | **无**（纯静态文件） |
-| 辅助工具 | PowerShell + Windows Batch（CSV 转换） |
+| Layer | Technology |
+|-------|------------|
+| Structure | HTML5 |
+| Styling | CSS3 (CSS Variables, Flexbox, Grid) |
+| Logic | Vanilla JavaScript (ES6+, Class-based) |
+| Rendering | HTML5 Canvas API + DOM Overlay |
+| Data Format | JSON |
+| Build System | None (static files only) |
 
-### 浏览器要求
-- 支持 ES6+、Canvas API、Fetch API 的现代浏览器
-- 由于使用 `fetch()` 加载 `TL_Data/*.json`，**直接通过 `file://` 协议打开可能因 CORS 限制导致数据加载失败**，建议通过本地 HTTP 服务器访问
+### Browser Requirements
+- Modern browsers with ES6+ support
+- Canvas API support
+- Fetch API support
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 Timeline/
-├── index.html              # 主入口，包含全部 UI 结构
-├── index.js                # 时间轴索引配置与应用初始化
-├── Timeline.js             # 核心应用逻辑（含数据类定义）
-├── style.css               # 全部样式（CSS 变量主题）
-├── AGENTS.md               # 本文件（AI 开发指南）
-├── Readme.md               # 待办事项与 Bug 跟踪（中文）
+├── index.html              # Main entry point - contains all UI markup
+├── Timeline.js             # Core application logic (~1121 lines)
+├── index.js                # Entry point: defines TIMELINE_INDEX and initializes app
+├── style.css               # Stylesheet with dark theme (~971 lines)
+├── Readme.md               # Data format documentation and TODO list (in Chinese)
+├── AGENTS.md               # This file - AI agent guide
 ├── LICENSE                 # Apache License 2.0
-├── .gitignore              
-├── CSV/                    # 数据转换工具
-│   ├── 0_CSVToJson.bat     # Windows 批处理启动器
-│   ├── 0_CSVToJson.ps1     # PowerShell 转换脚本
-│   ├── ThreeBody.csv       # 示例 CSV 数据源
-│   └── Timelines.xlsx      # Excel 编辑模板
-└── TL_Data/                # 时间轴 JSON 数据
-    ├── TL_ThreeBody.json
-    └── TL_QuantumPhysics.json
+├── .gitignore              # Ignores Office temp files, *.tmp
+├── CSV/                    # Data conversion utilities
+│   ├── 0_CSVToJson.bat     # Windows batch launcher
+│   ├── 0_CSVToJson.ps1     # PowerShell conversion script
+│   ├── ThreeBody.csv       # Example CSV data source
+│   ├── Physics.csv         # Physics timeline CSV source
+│   └── Timelines.xlsx      # Excel template for timeline editing
+└── TL_Data/                # Timeline JSON data files
+    ├── TL_ThreeBody.json   # Three-Body timeline events
+    └── TL_Physics.json     # Physics history timeline events
 ```
-
-### 重要说明
-- **不存在** `package.json`、`pyproject.toml`、`Cargo.toml`、`vite.config.js` 或任何其他构建/包管理配置文件。
-- 这是一个零依赖的纯前端项目，所有代码集中在 3 个核心文件中。
 
 ---
 
-## 架构详情
+## Architecture Details
 
-### 文件依赖关系
+### Core Classes
 
+#### `MyEvent` (in `Timeline.js`)
+Event object structure:
+```javascript
+{
+    year: Number,           // Event year (negative for BC)
+    month: Number,          // Optional: 1-12 (negative for offset only)
+    day: Number,            // Optional: 1-31 (negative for offset only)
+    title: String,          // Event title (displayed in detail panel)
+    label: String,          // Short label (displayed on timeline card)
+    importance: Number,     // 0-7, affects label visibility priority
+    desc: String,           // Brief description
+    detail: String,         // Full detailed content
+    era: String             // Historical period classification
+}
 ```
-index.html
-├── index.js          (定义 TIMELINE_INDEX，初始化 TimelineApp)
-├── Timeline.js       (核心逻辑与数据类)
-└── style.css         (样式)
+
+#### `Timeline` (in `Timeline.js`)
+Timeline object structure:
+```javascript
+{
+    id: String,             // Unique identifier
+    title: String,          // Display title
+    color: String,          // Hex color code
+    category: String,       // Category for filtering
+    events: MyEvent[]       // Array of events
+}
 ```
 
-### 配置与数据类（`index.js`）
+#### `TimelineApp` (main class in `Timeline.js`)
+The singleton application class managing all timeline functionality:
 
 ```javascript
-// 时间轴元数据索引
+// Key properties
+this.timelines          // Array of Timeline objects
+this.activeTimelines    // Set of currently visible timeline IDs
+this.viewStart/viewEnd  // Current time range being displayed
+this.minYear/maxYear    // Overall time bounds
+this.selectedEvent      // Currently selected event
+this._eventElements     // Map for DOM element pooling (performance)
+this.dragging           // Drag state for panning
+this.hasDragged         // Distinguish drag from click
+```
+
+### Rendering Architecture
+
+The application uses a **hybrid rendering approach**:
+
+1. **Canvas Layer** (`#timelineCanvas`):
+   - Draws timeline tracks (horizontal lines)
+   - Draws time scale/grid lines
+   - Draws event markers (dots on tracks)
+   - Handles mouse events for panning
+
+2. **DOM Overlay Layer** (`#eventsOverlay`):
+   - Contains interactive event cards (`event-card` elements)
+   - Displays event labels (vertical text)
+   - Shows popup details on hover/click
+   - Handles click interactions
+
+3. **Detail Panel** (`#detailPanel`):
+   - Fixed right-side panel for selected event details
+   - Slides in/out with CSS transitions
+
+### Data Flow
+
+```
+TIMELINE_INDEX (index.js) → fetch() → TimelineApp.timelines → render() → Canvas + DOM
+                                      ↓
+                              User interactions
+                              (zoom, pan, select)
+```
+
+---
+
+## Data Formats
+
+### Timeline Index (`TIMELINE_INDEX` in `index.js`)
+```javascript
 const TIMELINE_INDEX = [
-    { id: 'three-body', title: '三体', color: '#3b82f6', eventPath: './TL_Data/TL_ThreeBody.json', category: '科幻文学' },
-    { id: 'quantum-physics', title: '量子力学发展史', color: '#8b5cf6', eventPath: './TL_Data/TL_QuantumPhysics.json', category: '科学史' }
+    {
+        id: 'three-body',
+        title: '三体',
+        color: '#3b82f6',
+        eventPath: './TL_Data/TL_ThreeBody.json',
+        category: '科幻文学'
+    },
+    {
+        id: 'quantum-physics',
+        title: '物理学发展史',
+        color: '#8b5cf6',
+        eventPath: './TL_Data/TL_Physics.json',
+        category: '科学史'
+    }
 ];
-
-const defaultTimelineId = 'three-body';
-const app = new TimelineApp(TIMELINE_INDEX, defaultTimelineId);
 ```
 
-### 核心类定义（`Timeline.js`）
-
-```javascript
-// 配置常量
-const MIN_LABEL_SPACING = 25;        // 标签间最小像素间距
-const PADDING_AMOUNT = 0.05;         // 年份范围的留白比例
-const DRAG_THRESHOLD = 3;            // 拖拽检测阈值（像素）
-
-// 数据类
-class Timeline {
-    constructor(id, title, events, color, category)
-}
-
-class TimelineEvent {
-    constructor(year, title, label, importance, desc, detail, era)
-}
-
-class MyEvent {
-    constructor(year, month, day)  // 用于精确日期计算
-}
-```
-
-### 主应用类：`TimelineApp`
-
-```javascript
-// 关键属性
-this.timelines          // Timeline[] 时间轴对象数组
-this.activeTimelines    // Set<string> 当前可见时间轴 ID
-this.viewStart/viewEnd  // 当前显示的时间范围（支持小数年份表示月份）
-this.selectedEvent      // 当前选中事件
-this._eventElements     // Map 用于 DOM 元素对象池（性能优化）
-
-// 核心方法
-init()                  // 初始化
-loadData()              // 从 JSON 加载数据
-render()                // 主渲染循环
-renderTimeScale()       // 绘制时间刻度（含当前时间标记）
-renderEventDOMs()       // DOM 覆盖层差异更新
-setupRangeSlider()      // 范围选择器交互
-toggleSidebar()         // 侧边栏收起/展开
-```
-
-### 混合渲染架构
-
-1. **Canvas 层**（`#timelineCanvas`）
-   - 绘制轨道背景、时间刻度线/网格
-   - 绘制事件标记（圆点）
-   - **亮黄色当前时间刻度线**（当当前年份在视口内时）
-   - 处理鼠标拖拽平移事件
-
-2. **DOM 覆盖层**（`#eventsOverlay`）
-   - 绝对定位的事件卡片（`.event-card`）
-   - 显示纵向标签（优先显示 `label`，否则显示 `title`）
-   - 悬浮/点击弹出详情气泡（`.event-popup`）
-   - 使用 `pointer-events` 精细控制事件穿透
-
-3. **详情面板**（`#detailPanel`）
-   - 右侧固定面板，通过 CSS `right` 属性滑入滑出
-   - **支持文本选择**（全局 `user-select: none` 的例外）
-
-4. **范围选择器**（底部）
-   - 双滑块调整视口范围
-   - 滑块上方标签显示当前选中年份
-   - 下方标签显示整体事件范围
-
-### 数据流
-
-```
-TIMELINE_INDEX（硬编码索引）
-    ↓
-fetch(TL_Data/*.json) → Timeline 实例
-    ↓
-this.timelines（内存中）
-    ↓
-render() → Canvas 绘制 + DOM 差异更新
-```
-
-### 性能优化
-
-- **DOM 对象池**：`renderEventDOMs()` 使用 `Map` 存储 `_eventElements`，复用已创建的 DOM 元素
-- **标签碰撞检测**：按 `importance` 优先级分配显示空间，避免重叠
-- **Canvas 持续渲染**：侧边栏动画期间使用 `requestAnimationFrame` 保持流畅
-
----
-
-## 数据格式
-
-### 事件 JSON 格式（`TL_Data/*.json`）
-
+### Event JSON Format (`TL_Data/*.json`)
 ```json
 [
   {
-    "year": 2007,
-    "title": "事件标题",
-    "label": "自定义标签",
-    "importance": 1,
-    "desc": "简介",
-    "detail": "详细信息",
-    "era": "纪元名称"
+    "year": 1979,
+    "month": 10,
+    "day": 21,
+    "title": "叶文洁收到三体回复",
+    "label": "叶收到三体回复",
+    "importance": 7,
+    "desc": "叶文洁收到三体世界的警告信息，并回复",
+    "detail": "凌晨0点，在向太阳发射信息不到9年后...",
+    "era": "黄金时代"
   }
 ]
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `year` | int | 年份（可为负数表示公元前） |
-| `title` | string | 短标题（label 为空时显示） |
-| `label` | string | 可选自定义标签（优先显示） |
-| `importance` | int | 0-2，影响标签显示优先级 |
-| `desc` | string | 简介，显示在详情面板 |
-| `detail` | string | 详细信息，显示在详情面板 |
-| `era` | string | 历史时期/纪元分类 |
+### CSV Format (for data import)
+CSV files should have these columns: `Year`, `Month`, `Day`, `Title`, `Lable`, `Importance`, `Desc`, `Detail`, `Era`
 
-### CSV 格式（用于数据导入）
-
-```csv
-Year,Title,Lable,Importance,Desc,Detail,Era
-2007,事件标题,,1,简介,详细信息,纪元名称
-```
-
-注意：CSV 表头使用 `Lable`（拼写与常见 `Label` 不同），与 `0_CSVToJson.ps1` 中的解析逻辑对应。
+**Note**: Month and day can be negative for time offset (position adjustment) without display.
 
 ---
 
-## 开发指南
+## Development Guide
 
-### 运行项目
+### Running the Project
 
-无需构建，直接通过本地 HTTP 服务器运行：
+No build process is required. Simply open `index.html` in a modern web browser:
 
 ```bash
-# Python 3
+# Option 1: Direct file open
+# Open index.html in browser
+
+# Option 2: Simple HTTP server (recommended for fetch API)
+cd Timeline
 python -m http.server 8000
-
-# 然后访问 http://localhost:8000
+# Then visit http://localhost:8000
 ```
 
-### 添加新时间轴
+### Adding a New Timeline
 
-1. 在 `TL_Data/` 下创建 JSON 数据文件
-2. 在 `index.js` 中的 `TIMELINE_INDEX` 数组注册新条目
-3. 刷新浏览器即可生效
+1. **Create JSON data file** in `TL_Data/`:
+   ```json
+   [
+     {"year": 1900, "month": 1, "day": 1, "title": "Event", "importance": 0, "desc": "...", "detail": "...", "era": "..."}
+   ]
+   ```
 
-### 调整侧边栏动画时长
+2. **Register in `TIMELINE_INDEX`** (in `index.js`):
+   ```javascript
+   const TIMELINE_INDEX = [
+     // ... existing timelines
+     {
+       id: 'my-timeline',
+       title: 'My Timeline',
+       color: '#f59e0b',
+       eventPath: './TL_Data/TL_MyTimeline.json',
+       category: 'Custom Category'
+     }
+   ];
+   ```
 
-CSS 变量和 JS 已同步，只需修改 `:root` 中的值：
+3. **Refresh browser** - the new timeline will appear in the sidebar
 
-```css
-:root {
-    --sidebar-animation-duration: 300ms;  /* 修改此处 */
-}
+### Converting CSV to JSON
+
+Use the provided PowerShell script:
+
+```powershell
+# Option 1: Drag CSV file onto 0_CSVToJson.bat
+# Option 2: Run directly
+.\CSV\0_CSVToJson.ps1 -InputFile ".\CSV\MyData.csv"
 ```
 
-JS 会自动通过 `getComputedStyle()` 读取该值。
+The script will:
+- Convert CSV to formatted JSON
+- Auto-copy to clipboard
+- Optionally save to file
 
 ---
 
-## 代码规范
+## Code Conventions
 
-### 命名约定
-- **类名**：`PascalCase`（如 `TimelineApp`、`TimelineEvent`）
-- **方法/变量**：`camelCase`（如 `renderSidebar`、`activeTimelines`）
-- **常量**：`UPPER_SNAKE_CASE`（如 `MIN_LABEL_SPACING`）
-- **CSS 类名**：`kebab-case`（如 `event-card`、`timeline-item`）
+### Naming (as used in codebase)
+- **Classes**: `PascalCase` (e.g., `TimelineApp`)
+- **Methods/Variables**: `camelCase` (e.g., `renderSidebar`, `activeTimelines`)
+- **Constants**: `UPPER_SNAKE_CASE` (e.g., `MIN_LABEL_SPACING`)
+- **CSS Classes**: `kebab-case` (e.g., `event-card`, `timeline-item`)
 
-### 主题 CSS 变量
-
-定义于 `style.css` 的 `:root` 中：
-
+### CSS Variables (Theme)
+Located in `:root` in `style.css`:
 ```css
---bg-primary: #0f172a;              /* 主背景 */
---bg-secondary: #1e293b;            /* 卡片/面板背景 */
---bg-tertiary: #334155;             /* 输入框/按钮背景 */
---text-primary: #f8fafc;            /* 主文字 */
---text-secondary: #94a3b8;          /* 次要文字 */
---accent-blue: #3b82f6;             /* 主强调色 */
---accent-purple: #8b5cf6;
+--bg-primary: #0f172a;      /* Main background */
+--bg-secondary: #1e293b;    /* Card/panel background */
+--bg-tertiary: #334155;     /* Input/button background */
+--text-primary: #f8fafc;    /* Primary text */
+--text-secondary: #94a3b8;  /* Secondary text */
+--accent-blue: #3b82f6;     /* Primary accent */
+--accent-purple: #8b5cf6;   /* Secondary accent */
 --accent-emerald: #10b981;
 --accent-rose: #f43f5e;
---accent-amber: #f59e0b;            /* 当前时间刻度颜色 */
---border-color: #475569;
---sidebar-animation-duration: 300ms; /* 动画时长 */
+--accent-amber: #f59e0b;
+--sidebar-animation-duration: 300ms;
 ```
 
-### 全局文本选择控制
-
-- `body` 设置 `user-select: none` 防止误选
-- `.detail-panel` 和 `.modal-body` 单独启用 `user-select: text`
-
-### 交互模式
-
-**拖拽检测**：
+### Event Handling Patterns
 ```javascript
+// Drag detection pattern
 this.dragging = true;
 this.hasDragged = false;
 this.dragStartX = e.clientX;
 
-// mousemove 中
+// In mousemove
 if (Math.abs(e.clientX - this.dragStartX) > DRAG_THRESHOLD) {
     this.hasDragged = true;
 }
 
-// click 中
-if (this.hasDragged) return; // 忽略拖拽触发的点击
+// In click handler - ignore if was a drag
+if (this.hasDragged) return;
 ```
 
 ---
 
-## 已知问题与待办（来自 `Readme.md`）
+## Key Implementation Details
 
-### 已修复
-- ✅ 分类筛选功能正常工作
-- ✅ "上一个"/"下一个"按钮已移至工具栏左侧
-- ✅ 范围选择器显示改进（4个数字布局）
-- ✅ 侧边栏支持收起/展开
+### Virtual DOM for Event Cards
+The application uses a Map-based object pooling system (`this._eventElements`) to:
+- Reuse DOM elements instead of recreating
+- Diff visible vs. hidden events
+- Minimize DOM operations during render
 
-### 待实现功能
-- 大卡片（`.event-popup`）应显示 `desc` 而非 `title`
-- 取消双击编辑，改为右键菜单（编辑/删除）
-- 左侧列表支持拖拽排序
-- 拖拽到边界时添加回弹动画
-- 页面缩放控制（顶部工具栏）
+### Time Scale Calculation
+```javascript
+calculateTimeStep(span) {
+    if (span > 10000) return 1000;
+    if (span > 5000) return 500;
+    if (span > 1000) return 100;
+    // ... etc
+}
+```
 
----
+### Coordinate Mapping
+```javascript
+// Year to X coordinate
+const x = ((year - this.viewStart) / timeSpan) * canvasWidth;
 
-## 测试与部署
+// X coordinate to Year
+const year = this.viewStart + (x / canvasWidth) * timeSpan;
+```
 
-### 测试
-- **无自动化测试套件**，依赖手动测试
-- 手动测试清单：
-  1. 时间轴加载：确认所有 JSON 数据正常加载，无控制台报错
-  2. 导航：测试缩放（滚轮）、平移（拖拽）、范围滑块
-  3. 侧边栏：点击切换按钮测试收起/展开动画
-  4. 选择：点击事件卡片打开详情面板
-  5. 筛选：点击分类标签切换显示
-  6. CRUD：新建、编辑、删除时间轴
-  7. 导入/导出：JSON 数据的复制与粘贴导入
-  8. 键盘：Esc（关闭面板）、左右方向键（事件导航）
+### Decimal Year Calculation
+Events can have month/day for precise positioning. The `getDecimalYear()` method converts to decimal:
+- January = 0.0, December ≈ 0.92
+- Day further refines position
 
-### 部署
-- 项目为纯静态文件，可直接部署到任何静态托管服务（GitHub Pages、Vercel、Nginx 等）
-- 确保 `TL_Data/*.json` 文件与 `index.html` 的相对路径关系保持不变
-
----
-
-## 文件参考
-
-| 文件 | 用途 | 行数（约） |
-|------|------|-----------|
-| `index.html` | HTML 结构、UI 布局 | 201 |
-| `index.js` | 时间轴索引配置与初始化 | 22 |
-| `Timeline.js` | 应用逻辑、渲染、交互、数据类 | 1069 |
-| `style.css` | 样式、主题、动画 | 928 |
-| `TL_Data/*.json` | 时间轴事件数据 | 因内容而异 |
-| `CSV/0_CSVToJson.ps1` | CSV 转 JSON 工具 | 95 |
+### Date Offset Feature
+Negative month/day values are used for time offset without display:
+- `{"year": 2007, "month": -6}` displays as "2007" but positions at 2007.5
+- Useful when multiple events in same year need visual separation
 
 ---
 
-## 许可证
+## Known Issues and TODO (from Readme.md)
 
-Apache License 2.0 - 详见 `LICENSE` 文件
+### Bugs
+- Range slider minimum range is larger than wheel zoom minimum (5 years)
+- After zooming to max with wheel, range slider cannot adjust in small ranges
+
+### Features
+- Mobile device compatibility (landscape mode)
+- Convert detail panel to floating panel
+- Drag-to-reorder in sidebar timeline list
+- Bounce-back animation when dragging beyond limits
+- Add toggle for showing current year marker
+
+### Optimizations
+- Separate important CSS variables for easier theming
+- Optimize `renderSidebar` to avoid full regeneration
+
+---
+
+## Testing
+
+No automated test suite exists. Manual testing checklist:
+
+1. **Timeline Loading**: Verify all timelines load without console errors
+2. **Navigation**: Test zoom (mouse wheel), pan (drag), reset view
+3. **Range Slider**: Drag handles to adjust visible range
+4. **Selection**: Click events to open detail panel
+5. **Category Filter**: Click category tags to filter timelines
+6. **Sidebar**: Test collapse/expand toggle
+7. **CRUD Operations**: Create, edit, delete timelines via UI
+8. **Context Menu**: Right-click timeline items for edit/delete
+9. **Import/Export**: Test JSON import/export functionality
+10. **Keyboard**: Test Escape (close panel), Arrow keys (navigate events)
+
+---
+
+## License
+
+Apache License 2.0 - See `LICENSE` file
+
+---
+
+## File Reference
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `index.html` | HTML structure, UI layout | ~221 |
+| `Timeline.js` | Application logic, rendering, interactions | ~1121 |
+| `index.js` | Timeline index definition and app initialization | ~22 |
+| `style.css` | Styling, theming, animations | ~971 |
+| `TL_Data/*.json` | Timeline event data | varies |
+| `CSV/0_CSVToJson.ps1` | CSV to JSON conversion utility | ~97 |
