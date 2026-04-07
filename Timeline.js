@@ -189,6 +189,17 @@ class TimelineApp {
             }
         });
 
+        // 视图范围输入框回车键支持
+        const viewStartInput = document.getElementById('viewStartInput');
+        const viewEndInput = document.getElementById('viewEndInput');
+        if (viewStartInput && viewEndInput) {
+            const handleEnter = (e) => {
+                if (e.key === 'Enter') this.applyViewRange();
+            };
+            viewStartInput.addEventListener('keypress', handleEnter);
+            viewEndInput.addEventListener('keypress', handleEnter);
+        }
+
         // 当鼠标重新进入窗口时，检查左键是否已释放（按钮状态为0表示未按下）
         this.container.addEventListener('mouseenter', (e) => {
             if (this.dragging && e.buttons === 0) {
@@ -328,9 +339,36 @@ class TimelineApp {
         else this.activeTimelines.add(id);
         this.renderSidebar();
 
-        // 如果从空状态变为有内容，自动适配范围（带padding）
-        if (wasEmpty && this.activeTimelines.size > 0) this.resetView();
-        else this.render();
+        if (wasEmpty && this.activeTimelines.size > 0) {
+            // 从空状态变为有内容，重置视图
+            this.resetView();
+        } else if (this.activeTimelines.size > 0) {
+            // 计算新的时间范围
+            let newMin = Infinity, newMax = -Infinity;
+            this.timelines
+                .filter(t => this.activeTimelines.has(t.id))
+                .forEach(t => {
+                    t.events.forEach(e => {
+                        if (e.year < newMin) newMin = e.year;
+                        if (e.year > newMax) newMax = e.year;
+                    });
+                });
+            const newSpan = newMax - newMin;
+            const currentSpan = this.viewEnd - this.viewStart;
+
+            // 只有当新范围比当前视图范围小时才重置视图
+            if (newSpan < currentSpan) {
+                this.resetView();
+            } else {
+                // 否则只更新范围选择器的数据，保持当前视图
+                this.updateMinMaxFromActiveTimelines();
+                this.updateRangeSlider();
+                this.render();
+            }
+        } else {
+            // 没有激活的时间轴了
+            this.render();
+        }
     }
 
     /**
@@ -558,21 +596,18 @@ class TimelineApp {
             ctx.lineTo(x, height);
             ctx.stroke();
 
-            // 年份标签（只在重要刻度或间隔足够大时显示）
-            const showLabel = isMajor || (step >= 10 && Math.round(t) % Math.max(1, Math.floor(majorStep / 10)) === 0);
-            if (showLabel) {
-                ctx.fillStyle = isMajor ? '#94a3b8' : '#64748b';
-                ctx.font = isMajor ? YEARSCALE_BOLD_FONT : YEARSCALE_FONT;
-                ctx.textAlign = 'center';
-                // 小数部分转换为月份显示
-                const year = Math.floor(t);
-                const fraction = t - year;
-                if (fraction > 0.001) {
-                    const month = Math.min(11, Math.floor(fraction * 12));
-                    ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, height - 10);
-                } else {
-                    ctx.fillText(year.toString(), x, height - 10);
-                }
+            // 年份标签
+            ctx.fillStyle = isMajor ? '#94a3b8' : '#64748b';
+            ctx.font = isMajor ? YEARSCALE_BOLD_FONT : YEARSCALE_FONT;
+            ctx.textAlign = 'center';
+            // 小数部分转换为月份显示
+            const year = Math.floor(t);
+            const fraction = t - year;
+            if (fraction > 0.001) {
+                const month = Math.min(11, Math.floor(fraction * 12));
+                ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, height - 10);
+            } else {
+                ctx.fillText(year.toString(), x, height - 10);
             }
         }
 
@@ -961,6 +996,53 @@ class TimelineApp {
         // 更新下方整体范围标签
         document.getElementById('extentMinLabel').textContent = Math.round(this.minYear);
         document.getElementById('extentMaxLabel').textContent = Math.round(this.maxYear);
+
+        // 更新工具栏输入框
+        const viewStartInput = document.getElementById('viewStartInput');
+        const viewEndInput = document.getElementById('viewEndInput');
+        if (viewStartInput && viewEndInput) {
+            viewStartInput.value = Math.round(this.viewStart);
+            viewEndInput.value = Math.round(this.viewEnd);
+        }
+    }
+
+    /**
+     * 应用用户输入的视图范围
+     */
+    applyViewRange() {
+        const startInput = document.getElementById('viewStartInput');
+        const endInput = document.getElementById('viewEndInput');
+        
+        let start = parseInt(startInput.value);
+        let end = parseInt(endInput.value);
+        
+        if (isNaN(start) || isNaN(end)) {
+            this.showToast('请输入有效的年份');
+            return;
+        }
+        
+        // 确保起始小于结束
+        if (start >= end) {
+            this.showToast('起始年份必须小于结束年份');
+            return;
+        }
+        
+        // 限制最小跨度
+        const span = end - start;
+        if (span < MIN_YEAR_SPAN) {
+            end = start + MIN_YEAR_SPAN;
+            this.showToast(`视图范围至少${MIN_YEAR_SPAN}年，已自动调整`);
+        }
+        
+        // 边界检查
+        if (start < this.minYear) start = this.minYear;
+        if (end > this.maxYear) end = this.maxYear;
+        
+        this.viewStart = start;
+        this.viewEnd = end;
+        
+        this.updateRangeSlider();
+        this.render();
     }
 
     /**

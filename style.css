@@ -101,11 +101,6 @@ body {
     color: white;
 }
 
-.btn.active {
-    background: var(--accent-blue);
-    border-color: var(--accent-blue);
-}
-
 .btn-secondary {
     background: transparent;
 }
@@ -287,18 +282,6 @@ body {
     position: relative;
 }
 
-/* 事件卡片容器 - 与Canvas完全重叠 */
-.events-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    /* 让鼠标事件穿透到Canvas（用于拖拽） */
-    overflow: hidden;
-}
-
 /* 单个事件卡片 */
 .event-card {
     position: absolute;
@@ -447,51 +430,66 @@ body {
     gap: 15px;
 }
 
-.zoom-controls {
+/* 视图范围输入框 */
+.view-range-inputs {
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: var(--bg-tertiary);
-    padding: 4px;
-    border-radius: 6px;
-}
-
-.zoom-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: var(--text-primary);
-    cursor: pointer;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    transition: background 0.2s;
-}
-
-.zoom-btn:hover {
-    background: var(--border-color);
-}
-
-.zoom-level {
-    min-width: 60px;
-    text-align: center;
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-}
-
-.view-options {
-    display: flex;
     gap: 8px;
+    background: var(--bg-tertiary);
+    padding: 4px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
 }
 
-/* 时间轴画布 */
-.canvas-container {
+.view-range-inputs .range-input {
+    width: 70px;
+    padding: 4px 8px;
+    font-size: 14px;
+    text-align: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* 移除数字输入框的上下小按钮 */
+.view-range-inputs .range-input::-webkit-outer-spin-button,
+.view-range-inputs .range-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+
+.view-range-inputs .range-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.view-range-inputs .range-separator {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.view-range-inputs .btn-sm {
+    padding: 4px 10px;
+    font-size: 14px;
+    margin-left: 4px;
+}
+
+/* 时间轴画布容器 */
+.timeline-canvas-wrapper {
     flex: 1;
-    overflow: hidden;
     position: relative;
+    overflow: visible;
+}
+
+/* 画布容器 - Canvas绘制区域 */
+.canvas-container {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
     background:
         linear-gradient(var(--bg-primary) 2px, transparent 2px),
         linear-gradient(90deg, var(--bg-primary) 2px, transparent 2px),
@@ -514,6 +512,15 @@ body {
     height: 100%;
 }
 
+/* 事件遮罩层 - DOM元素渲染区域，与canvas平级并允许溢出 */
+.events-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 10;
+}
+
 /* 底部范围选择器 */
 .range-selector {
     height: 80px;
@@ -523,13 +530,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-}
-
-.range-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--text-secondary);
 }
 
 .range-slider-container {

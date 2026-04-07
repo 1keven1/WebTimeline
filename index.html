@@ -55,18 +55,26 @@
         <main class="timeline-view">
             <div class="toolbar">
                 <button class="btn btn-secondary" onclick="app.resetView()"> 重置视图 </button>
+                <div class="view-range-inputs">
+                    <input type="number" class="form-input range-input" id="viewStartInput" placeholder="起始年份">
+                    <span class="range-separator">-</span>
+                    <input type="number" class="form-input range-input" id="viewEndInput" placeholder="结束年份">
+                    <button class="btn btn-secondary btn-sm" onclick="app.applyViewRange()">应用</button>
+                </div>
                 <button class="btn btn-secondary" id="currentTimeToggle" onclick="app.toggleCurrentTime()" title="显示/隐藏当前时间刻度">
                    当前时间
                 </button>
             </div>
 
-            <div class="canvas-container" id="canvasContainer">
-                <canvas id="timelineCanvas"></canvas>
-                <div class="events-overlay" id="eventsOverlay"></div>
-                <div class="empty-state" id="emptyState" style="display: none;">
-                    <div class="empty-state-icon">📊</div>
-                    <div class="empty-state-text">请选择至少一个时间轴开始浏览</div>
+            <div class="timeline-canvas-wrapper">
+                <div class="canvas-container" id="canvasContainer">
+                    <canvas id="timelineCanvas"></canvas>
+                    <div class="empty-state" id="emptyState" style="display: none;">
+                        <div class="empty-state-icon">📊</div>
+                        <div class="empty-state-text">请选择至少一个时间轴开始浏览</div>
+                    </div>
                 </div>
+                <div class="events-overlay" id="eventsOverlay"></div>
             </div>
 
             <!-- 范围选择器 -->
