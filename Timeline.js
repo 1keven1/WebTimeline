@@ -1,4 +1,6 @@
 'use strict'
+
+// ============ 常量定义 ============
 const MIN_LABEL_SPACING = 25; // 标签间最小像素间距
 const PADDING_AMOUNT = 0.05; // 年份范围的留白
 const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
@@ -14,44 +16,78 @@ const CURRENT_YEAR_COLOR = '#facc15';
 const CURRENT_YEAR_WIDTH = 2;
 const CURRENT_YEAR_FONT = 'bold 14px sans-serif';
 
+// ============ 工具函数 ============
+/**
+ * 将值限制在指定范围内
+ */
+const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+
+/**
+ * 防抖函数
+ */
+const debounce = (fn, delay) => {
+    let timer = null;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+};
+
+/**
+ * 请求全屏（带浏览器前缀兼容）
+ */
+const requestFullscreen = (elem) => {
+    const fn = elem.requestFullscreen || elem.webkitRequestFullscreen || 
+               elem.mozRequestFullScreen || elem.msRequestFullscreen;
+    return fn ? fn.call(elem) : Promise.reject('不支持全屏');
+};
+
+// ============ 类定义 ============
 /**
  * 时间轴中的事件对象结构体
- * @param {Int} year 事件年份
- * @param {String} title 事件标题
- * @param {String} label 事件标签（为空则使用标题）
- * @param {Int} importance 重要度
- * @param {String} desc 描述
- * @param {String} detail 细节
- * @param {String} era 时代 可为空
  */
-let MyEvent = function (year, month, day, title, label = '', importance = 0, desc, detail, era = '') {
-    this.year = year;
-    this.month = month;
-    this.day = day;
-    this.title = title;
-    this.label = label;
-    this.importance = importance;
-    this.desc = desc;
-    this.detail = detail;
-    this.era = era;
-};
+class MyEvent {
+    /**
+    * @param {Int} year 事件年份
+    * @param {String} title 事件标题
+    * @param {String} label 事件标签（为空则使用标题）
+    * @param {Int} importance 重要度
+    * @param {String} desc 描述
+    * @param {String} detail 细节
+    * @param {String} era 时代 可为空
+     */
+    constructor(year, month, day, title, label = '', importance = 0, desc, detail, era = '') {
+        this.year = year;
+        this.month = month;
+        this.day = day;
+        this.title = title;
+        this.label = label;
+        this.importance = importance;
+        this.desc = desc;
+        this.detail = detail;
+        this.era = era;
+    }
+}
 
 /**
  * 时间轴对象结构体
- * @param {String} id 
- * @param {String} title 
- * @param {MyEvent[]} events 
- * @param {String} color 
- * @param {String} category 
  */
-let Timeline = function (id, title, events, color, category) {
-    this.id = id;
-    this.title = title;
-    this.color = color;
-    this.category = category;
-    this.events = events;
-};
-
+class Timeline {
+    /**
+    * @param {String} id 
+    * @param {String} title 
+    * @param {MyEvent[]} events 
+    * @param {String} color 
+    * @param {String} category 
+     */
+    constructor(id, title, events, color, category) {
+        this.id = id;
+        this.title = title;
+        this.color = color;
+        this.category = category;
+        this.events = events;
+    }
+}
 
 class TimelineApp {
     constructor(timelineIndex, defaultTimelineId) {
@@ -63,8 +99,6 @@ class TimelineApp {
         this.maxYear = 10000;
         this.viewStart = 1453;
         this.viewEnd = 2020;
-        this.mouseX = 0;
-        this.mouseY = 0;
         /** @type {timelineId: String, event: MyEvent} */
         this.selectedEvent = null;
         this.lastMouseX = 0;
@@ -78,6 +112,25 @@ class TimelineApp {
         this.dragStartX = 0;
         this.dragStartY = 0;
 
+        // 触摸相关
+        this.touchState = {
+            isTouching: false,
+            touches: [],
+            startTouches: [],
+            startViewStart: 0,
+            startViewEnd: 0,
+            startDistance: 0,
+            startCenterX: 0,
+            startCenterY: 0,
+            panStartViewStart: 0,
+            panStartViewEnd: 0,
+            longPressTimer: null,
+            longPressDelay: 600, // 长按延迟毫秒
+            isLongPress: false,
+            touchStartTime: 0,
+            cardTouchStart: null
+        };
+
         // 初始化DOM对象池
         this._eventElements = new Map();
 
@@ -88,7 +141,7 @@ class TimelineApp {
         this.init(timelineIndex, defaultTimelineId);
     }
 
-    init(timelineIndex, defaultTimelineIds) {
+    async init(timelineIndex, defaultTimelineIds) {
         this.setupEventListeners();
         this.setupRangeSlider();
         this.initTheme();
@@ -96,24 +149,24 @@ class TimelineApp {
         this.resizeCanvas();
 
         // 加载时间轴数据
-        this.loadData(timelineIndex).then(() => {
-            // 生成侧边栏
-            this.renderSidebar();
-            // 默认激活时间轴（支持单个字符串或数组）
-            const ids = Array.isArray(defaultTimelineIds) ? defaultTimelineIds : [defaultTimelineIds];
-            ids.forEach(id => {
-                if (this.timelines.find(t => t.id === id)) {
-                    this.activeTimelines.add(id);
-                }
-            });
-            // 如果有激活的时间轴，重置视图并渲染
-            if (this.activeTimelines.size > 0) {
-                this.resetView();
+        await this.loadData(timelineIndex);
+        
+        // 默认激活时间轴（支持单个字符串或数组）
+        const ids = Array.isArray(defaultTimelineIds) ? defaultTimelineIds : [defaultTimelineIds];
+        ids.forEach(id => {
+            if (this.timelines.find(t => t.id === id)) {
+                this.activeTimelines.add(id);
             }
-            this.renderSidebar();
-            // 生成类别标签
-            this.renderCategories();
-        })
+        });
+        
+        // 如果有激活的时间轴，重置视图并渲染
+        if (this.activeTimelines.size > 0) {
+            this.resetView();
+        }
+        
+        this.renderSidebar();
+        // 生成类别标签
+        this.renderCategories();
     }
 
     /**
@@ -123,7 +176,7 @@ class TimelineApp {
         try {
             // 并行加载所有时间轴内容
             const loadPromises = timelineIndex.map(async (meta) => {
-                const res = await fetch(`${meta.eventPath}`);
+                const res = await fetch(meta.eventPath);
                 /** @type {MyEvent[]} */
                 const timelineEvents = await res.json();
                 return new Timeline(
@@ -143,6 +196,9 @@ class TimelineApp {
         }
     }
 
+    /**
+     * 设置事件监听器
+     */
     setupEventListeners() {
         // Canvas交互
         this.canvas.addEventListener('click', (e) => {
@@ -158,9 +214,6 @@ class TimelineApp {
         });
         // 鼠标移动（更新坐标并处理拖拽）
         this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            this.mouseX = e.clientX - rect.left;
-            this.mouseY = e.clientY - rect.top;
             this.handleMouseMove(e);
         });
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
@@ -170,10 +223,13 @@ class TimelineApp {
         this.container.addEventListener('wheel', (e) => this.handleWheel(e));
 
         // 窗口调整
-        window.addEventListener('resize', () => {
-            this.resizeCanvas();
-            this.render();
-        });
+        const handleResize = () => {
+            requestAnimationFrame(() => {
+                this.resizeCanvas();
+                this.render();
+            });
+        };
+        window.addEventListener('resize', handleResize);
 
         // 键盘导航
         document.addEventListener('keydown', (e) => {
@@ -207,8 +263,366 @@ class TimelineApp {
                 this.handleMouseUp();
             }
         });
+
+        // 触摸事件支持
+        this.setupTouchEventListeners();
     }
 
+    /**
+     * 设置触摸事件监听器
+     */
+    setupTouchEventListeners() {
+        const container = this.container;
+        
+        // 触摸开始
+        container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+        
+        // 触摸移动
+        container.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+        
+        // 触摸结束
+        container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+        container.addEventListener('touchcancel', (e) => this.handleTouchEnd(e), { passive: false });
+
+        // 初始化方向检测
+        this.checkOrientation();
+        // 使用防抖优化resize事件
+        const debouncedCheck = debounce(() => {
+            this.checkOrientation();
+        }, 100);
+        window.addEventListener('resize', debouncedCheck);
+        window.addEventListener('orientationchange', () => {
+            this.checkOrientation();
+            // 方向变化后延迟重新计算，确保尺寸正确
+            setTimeout(() => {
+                this.resizeCanvas();
+                this.render();
+            }, 100);
+        });
+    }
+
+    /**
+     * 检查屏幕方向
+     */
+    checkOrientation() {
+        const overlay = document.getElementById('orientationOverlay');
+        if (!overlay) return;
+
+        // 如果已经锁定为横屏，隐藏提示
+        const isLandscape = screen.orientation?.type?.startsWith('landscape');
+        const wasActive = overlay.classList.contains('active');
+        
+        if (isLandscape) {
+            overlay.classList.remove('active');
+        } else {
+            const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+            const isMobile = window.innerWidth <= 1024;
+            // 移动端竖屏时显示提示
+            if (isMobile && isPortrait) {
+                overlay.classList.add('active');
+            } else {
+                overlay.classList.remove('active');
+            }
+        }
+        
+        // 如果提示层状态变化，重新计算布局
+        if (wasActive !== overlay.classList.contains('active')) {
+            setTimeout(() => {
+                this.resizeCanvas();
+                this.render();
+            }, 100);
+        }
+    }
+
+    /**
+     * 进入全屏并锁定横屏
+     */
+    async enterFullscreenAndLock() {
+        try {
+            // 1. 请求全屏
+            await requestFullscreen(document.documentElement);
+
+            // 2. 锁定横屏方向（全屏后才能锁定）
+            if (screen.orientation?.lock) {
+                await screen.orientation.lock('landscape');
+                this.showToast('已锁定横屏模式');
+            }
+
+            // 3. 全屏锁定后重新计算 canvas 尺寸
+            setTimeout(() => {
+                this.resizeCanvas();
+                this.render();
+            }, 300);
+        } catch (err) {
+            console.warn('全屏或锁定失败:', err);
+            this.showToast('无法锁定横屏，请手动旋转设备');
+        }
+    }
+
+    /**
+     * 触摸开始处理
+     */
+    handleTouchStart(e) {
+        e.preventDefault();
+        
+        const touches = e.touches;
+        const state = this.touchState;
+        
+        state.touches = Array.from(touches);
+        state.startTouches = Array.from(touches);
+        state.isTouching = true;
+        state.isLongPress = false;
+        state.touchStartTime = Date.now();
+        
+        // 记录当前视图范围（用于缩放）
+        state.startViewStart = this.viewStart;
+        state.startViewEnd = this.viewEnd;
+        
+        if (touches.length === 1) {
+            // 单指：可能是拖动或长按
+            const touch = touches[0];
+            state.startX = touch.clientX;
+            state.startY = touch.clientY;
+            
+            // 检查是否点击在时间轴项上
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const timelineItem = target?.closest('.timeline-item');
+            
+            if (timelineItem) {
+                // 在时间轴项上，设置长按定时器
+                state.longPressTarget = timelineItem;
+                state.longPressTimer = setTimeout(() => {
+                    state.isLongPress = true;
+                    this.handleLongPress(touch.clientX, touch.clientY, timelineItem);
+                }, state.longPressDelay);
+            } else {
+                // 在画布上，启动拖动
+                state.longPressTarget = null;
+                this.dragging = true;
+                this.hasDragged = false;
+                this.dragStartX = touch.clientX;
+                this.dragStartY = touch.clientY;
+                this.lastMouseX = touch.clientX;
+                this.container.classList.add('dragging');
+            }
+        } else if (touches.length === 2) {
+            // 双指：准备缩放和平移
+            state.startDistance = this.getTouchDistance(touches);
+            // 记录起始中心点（用于平移计算）
+            state.startCenterX = (touches[0].clientX + touches[1].clientX) / 2;
+            state.startCenterY = (touches[0].clientY + touches[1].clientY) / 2;
+            // 记录起始视图位置（用于平移）
+            state.panStartViewStart = this.viewStart;
+            state.panStartViewEnd = this.viewEnd;
+            // 取消长按定时器
+            if (state.longPressTimer) {
+                clearTimeout(state.longPressTimer);
+                state.longPressTimer = null;
+            }
+        }
+    }
+
+    /**
+     * 触摸移动处理
+     */
+    handleTouchMove(e) {
+        e.preventDefault();
+        
+        const touches = e.touches;
+        const state = this.touchState;
+        
+        if (!state.isTouching) return;
+        
+        if (touches.length === 1 && state.touches.length === 1) {
+            // 单指拖动
+            const touch = touches[0];
+            const dx = touch.clientX - state.startX;
+            const dy = touch.clientY - state.startY;
+            
+            // 检测移动距离，如果移动超过阈值则取消长按
+            if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+                if (state.longPressTimer) {
+                    clearTimeout(state.longPressTimer);
+                    state.longPressTimer = null;
+                }
+                
+                if (!this.dragging && !state.longPressTarget) {
+                    // 开始拖动
+                    this.dragging = true;
+                    this.hasDragged = false;
+                    this.dragStartX = state.startX;
+                    this.dragStartY = state.startY;
+                    this.lastMouseX = state.startX;
+                    this.container.classList.add('dragging');
+                }
+            }
+            
+            if (this.dragging) {
+                // 执行拖动
+                const deltaX = touch.clientX - this.lastMouseX;
+                const timeSpan = this.viewEnd - this.viewStart;
+                const canvasWidth = this.getCanvasWidth();
+                const timeDelta = (deltaX / canvasWidth) * timeSpan;
+                
+                this.viewStart -= timeDelta;
+                this.viewEnd -= timeDelta;
+                
+                // 检测是否移动超过阈值
+                if (Math.abs(touch.clientX - this.dragStartX) > DRAG_THRESHOLD ||
+                    Math.abs(touch.clientY - this.dragStartY) > DRAG_THRESHOLD) {
+                    this.hasDragged = true;
+                }
+                
+                // 边界检查
+                this.clampViewBounds();
+                this.updateRangeSlider();
+                this.render();
+                this.lastMouseX = touch.clientX;
+            }
+        } else if (touches.length === 2 && state.startTouches.length === 2) {
+            // 双指缩放 + 平移
+            const currentDistance = this.getTouchDistance(touches);
+            
+            if (state.startDistance > 0) {
+                // 1. 计算缩放
+                const scale = currentDistance / state.startDistance;
+                const startSpan = state.panStartViewEnd - state.panStartViewStart;
+                let newSpan = startSpan / scale;
+                
+                // 限制缩放范围
+                const maxSpan = this.maxYear - this.minYear;
+                newSpan = clamp(newSpan, MIN_YEAR_SPAN, maxSpan);
+                
+                // 2. 计算双指中心点的移动（平移）
+                const currentCenterX = (touches[0].clientX + touches[1].clientX) / 2;
+                const deltaCenterX = currentCenterX - state.startCenterX;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const canvasWidth = this.getCanvasWidth();
+                
+                // 计算平移对应的时间变化
+                const timeDelta = (deltaCenterX / canvasWidth) * newSpan;
+                
+                // 3. 计算中心点对应的时间位置（考虑缩放后的位置）
+                const centerRatio = (state.startCenterX - rect.left) / canvasWidth;
+                const centerTime = state.panStartViewStart + centerRatio * startSpan;
+                
+                // 4. 综合缩放和平移计算新视图
+                // 以中心点为锚点进行缩放，然后加上平移
+                let newStart = centerTime - centerRatio * newSpan - timeDelta;
+                let newEnd = centerTime + (1 - centerRatio) * newSpan - timeDelta;
+                
+                // 5. 边界检查
+                if (newStart < this.minYear) {
+                    newStart = this.minYear;
+                    newEnd = this.minYear + newSpan;
+                }
+                if (newEnd > this.maxYear) {
+                    newEnd = this.maxYear;
+                    newStart = this.maxYear - newSpan;
+                }
+                
+                this.viewStart = newStart;
+                this.viewEnd = newEnd;
+                this.updateRangeSlider();
+                this.render();
+            }
+        }
+        
+        state.touches = Array.from(touches);
+    }
+
+    /**
+     * 触摸结束处理
+     */
+    handleTouchEnd(e) {
+        e.preventDefault();
+        
+        const state = this.touchState;
+        const touches = e.touches;
+        
+        // 清除长按定时器
+        if (state.longPressTimer) {
+            clearTimeout(state.longPressTimer);
+            state.longPressTimer = null;
+        }
+        
+        if (touches.length === 0) {
+            // 所有手指都离开
+            state.isTouching = false;
+            state.touches = [];
+            
+            // 结束拖动
+            if (this.dragging) {
+                this.dragging = false;
+                this.container.classList.remove('dragging');
+            }
+            
+            // 如果不是长按且没有拖动，则是点击
+            if (!state.isLongPress && !this.hasDragged) {
+                const touch = e.changedTouches[0];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                
+                // 检查是否点击在时间轴项上
+                const timelineItem = target?.closest('.timeline-item');
+                if (timelineItem && state.longPressTarget === timelineItem) {
+                    // 触发点击
+                    timelineItem.click();
+                } else if (!target?.closest('.event-card')) {
+                    // 点击空白处，取消选择
+                    this.selectedEvent = null;
+                    this.closeDetail();
+                    this.render();
+                }
+            }
+            
+            state.longPressTarget = null;
+            state.isLongPress = false;
+            this.hasDragged = false;
+        } else {
+            // 还有手指在屏幕上（双指变单指）
+            state.touches = Array.from(touches);
+            state.startTouches = Array.from(touches);
+            state.startDistance = touches.length === 2 ? this.getTouchDistance(touches) : 0;
+            
+            if (touches.length === 1) {
+                // 双指松开一个变单指，更新单指拖动的起始状态
+                state.startX = touches[0].clientX;
+                state.startY = touches[0].clientY;
+                // 使用当前视图位置作为单指拖动的起始点
+                state.panStartViewStart = this.viewStart;
+                state.panStartViewEnd = this.viewEnd;
+                // 重置拖动状态，允许继续拖动
+                this.dragging = false;
+                this.hasDragged = false;
+            }
+        }
+    }
+
+    /**
+     * 获取双指间距离
+     */
+    getTouchDistance(touches) {
+        if (touches.length < 2) return 0;
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    /**
+     * 长按处理
+     */
+    handleLongPress(x, y, timelineItem) {
+        // 长按处理：模拟右键菜单
+        const index = Array.from(document.querySelectorAll('.timeline-item')).indexOf(timelineItem);
+        if (index >= 0 && index < this.timelines.length) {
+            this.showContextMenu({ clientX: x, clientY: y }, this.timelines[index].id);
+        }
+    }
+
+    /**
+     * 设置范围选择器
+     */
     setupRangeSlider() {
         const slider = document.getElementById('rangeSlider');
         const leftHandle = document.getElementById('handleLeft');
@@ -239,12 +653,13 @@ class TimelineApp {
             this.render();
         };
 
-        const handleMouseMove = (e) => {
+        // 合并鼠标和触摸的拖动逻辑
+        const handleMove = (clientX) => {
             if (!isDragging) return;
 
             const rect = slider.getBoundingClientRect();
-            let percent = ((e.clientX - rect.left) / rect.width) * 100;
-            percent = Math.max(0, Math.min(100, percent));
+            let percent = ((clientX - rect.left) / rect.width) * 100;
+            percent = clamp(percent, 0, 100);
 
             // 计算最小百分比跨度（对应MIN_YEAR_SPAN年）
             const totalSpan = this.maxYear - this.minYear;
@@ -267,218 +682,86 @@ class TimelineApp {
             updateRange();
         };
 
-        const handleMouseUp = () => {
+        const handleMouseMove = (e) => handleMove(e.clientX);
+        const handleTouchMove = (e) => {
+            e.preventDefault();
+            handleMove(e.touches[0].clientX);
+        };
+
+        const stopDrag = () => {
             isDragging = null;
             document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchmove', handleTouchMove);
+            document.removeEventListener('touchend', stopDrag);
+            document.removeEventListener('touchcancel', stopDrag);
         };
 
-        leftHandle.addEventListener('mousedown', (e) => {
-            isDragging = 'left';
+        const startDrag = (type) => {
+            isDragging = type;
             document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        });
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+            document.addEventListener('touchend', stopDrag);
+            document.addEventListener('touchcancel', stopDrag);
+        };
 
-        rightHandle.addEventListener('mousedown', (e) => {
-            isDragging = 'right';
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        });
+        leftHandle.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag('left'); });
+        leftHandle.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag('left'); }, { passive: false });
+        
+        rightHandle.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag('right'); });
+        rightHandle.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag('right'); }, { passive: false });
     }
 
+    /**
+     * 调整Canvas尺寸（考虑高DPR）
+     */
     resizeCanvas() {
         const rect = this.container.getBoundingClientRect();
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
-    }
-
-    renderSidebar() {
-        const list = document.getElementById('timelineList');
-        list.innerHTML = '';
-
-        this.timelines.forEach(timeline => {
-            const item = document.createElement('div');
-            item.className = 'timeline-item' + (this.activeTimelines.has(timeline.id) ? ' active' : '');
-            item.innerHTML = `
-                <div class="timeline-color-indicator" style="background: ${timeline.color}"></div>
-                <div class="timeline-item-content">
-                    <div class="timeline-item-title">${timeline.title}</div>
-                    <div class="timeline-item-meta">
-                        <span class="timeline-item-category">${timeline.category}</span>
-                        <span>${timeline.events.length} 个事件</span>
-                    </div>
-                </div>
-            `;
-            item.onclick = () => this.toggleTimeline(timeline.id);
-            item.oncontextmenu = (e) => {
-                e.preventDefault();
-                this.showContextMenu(e, timeline.id);
-            };
-            list.appendChild(item);
-        });
-    }
-
-    renderCategories() {
-        const filter = document.getElementById('categoryFilter');
-        const categories = [...new Set(this.timelines.map(t => t.category))];
-
-        filter.innerHTML = '<span class="category-tag" onclick="app.filterCategory(\'all\')">全部</span>';
-        categories.forEach(cat => {
-            filter.innerHTML += `<span class="category-tag" onclick="app.filterCategory('${cat}')">${cat}</span>`;
-        });
+        const dpr = window.devicePixelRatio || 1;
+        
+        // 设置 Canvas 实际像素尺寸（考虑设备像素比）
+        this.canvas.width = Math.floor(rect.width * dpr);
+        this.canvas.height = Math.floor(rect.height * dpr);
+        
+        // 设置 Canvas CSS 尺寸
+        this.canvas.style.width = rect.width + 'px';
+        this.canvas.style.height = rect.height + 'px';
+        
+        // 缩放绘图上下文以适应高 DPR
+        this.ctx.scale(dpr, dpr);
+        
+        // 保存 DPR 供其他方法使用
+        this._dpr = dpr;
     }
 
     /**
-     * 切换时间轴可视性
-     * @param {String} id 时间轴id
+     * 获取 Canvas 的 CSS 尺寸（逻辑像素）
      */
-    toggleTimeline(id) {
-        const wasEmpty = this.activeTimelines.size === 0;
+    getCanvasWidth() { return this.canvas.clientWidth; }
+    getCanvasHeight() { return this.canvas.clientHeight; }
 
-        if (this.activeTimelines.has(id)) this.activeTimelines.delete(id);
-        else this.activeTimelines.add(id);
-        this.renderSidebar();
-
-        if (wasEmpty && this.activeTimelines.size > 0) {
-            // 从空状态变为有内容，重置视图
-            this.resetView();
-        } else if (this.activeTimelines.size > 0) {
-            // 计算新的时间范围
-            let newMin = Infinity, newMax = -Infinity;
-            this.timelines
-                .filter(t => this.activeTimelines.has(t.id))
-                .forEach(t => {
-                    t.events.forEach(e => {
-                        if (e.year < newMin) newMin = e.year;
-                        if (e.year > newMax) newMax = e.year;
-                    });
-                });
-            const newSpan = newMax - newMin;
-            const currentSpan = this.viewEnd - this.viewStart;
-
-            // 只有当新范围比当前视图范围小时才重置视图
-            if (newSpan < currentSpan) {
-                this.resetView();
-            } else {
-                // 否则只更新范围选择器的数据，保持当前视图
-                this.updateMinMaxFromActiveTimelines();
-                this.updateRangeSlider();
-                this.render();
-            }
-        } else {
-            // 没有激活的时间轴了
-            this.render();
+    /**
+     * 边界检查：确保视图范围在有效范围内
+     */
+    clampViewBounds() {
+        if (this.viewStart < this.minYear) {
+            this.viewEnd += this.minYear - this.viewStart;
+            this.viewStart = this.minYear;
+        }
+        if (this.viewEnd > this.maxYear) {
+            this.viewStart -= this.viewEnd - this.maxYear;
+            this.viewEnd = this.maxYear;
         }
     }
-
-    /**
-     * 切换侧边栏收起/展开
-     */
-    toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        const toggleBtn = document.getElementById('sidebarToggle');
-        sidebar.classList.toggle('collapsed');
-        toggleBtn.classList.toggle('collapsed');
-        
-        // 动画期间持续重绘以保持流畅
-        const startTime = performance.now();
-        // 从 CSS 变量读取动画时长，保持与 CSS 同步
-        const duration = parseInt(getComputedStyle(document.documentElement)
-            .getPropertyValue('--sidebar-animation-duration')) || 300;
-        
-        const animate = (now) => {
-            const elapsed = now - startTime;
-            this.resizeCanvas();
-            this.render();
-            if (elapsed < duration) {
-                requestAnimationFrame(animate);
-            }
-        };
-        requestAnimationFrame(animate);
-    }
-
-    /**
-     * 切换日夜模式
-     */
-    toggleTheme() {
-        const html = document.documentElement;
-        const themeIcon = document.getElementById('themeIcon');
-        const themeText = document.getElementById('themeText');
-        const currentTheme = html.getAttribute('data-theme');
-        
-        if (currentTheme === 'light') {
-            html.removeAttribute('data-theme');
-            themeIcon.textContent = '☀️';
-            themeText.textContent = '日间';
-        } else {
-            html.setAttribute('data-theme', 'light');
-            themeIcon.textContent = '🌙';
-            themeText.textContent = '夜间';
-        }
-        
-        // 重绘以应用新主题
-        this.render();
-    }
-
-    /**
-     * 初始化主题（默认夜间模式）
-     */
-    initTheme() {
-        const themeIcon = document.getElementById('themeIcon');
-        const themeText = document.getElementById('themeText');
-        
-        // 默认夜间模式（无需从localStorage读取）
-        themeIcon.textContent = '☀️';
-        themeText.textContent = '日间';
-    }
-
-    /**
-     * 初始化当前时间刻度按钮状态
-     */
-    initCurrentTimeToggle() {
-        const btn = document.getElementById('currentTimeToggle');
-        if (this.showCurrentTime && btn) {
-            btn.classList.add('active');
-        }
-    }
-
-    /**
-     * 切换当前时间刻度显示
-     */
-    toggleCurrentTime() {
-        this.showCurrentTime = !this.showCurrentTime;
-        const btn = document.getElementById('currentTimeToggle');
-        
-        if (this.showCurrentTime) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-        
-        this.render();
-    }
-
-    filterCategory(category) {
-        if (category === 'all') {
-            this.timelines.forEach(t => this.activeTimelines.add(t.id));
-        } else {
-            this.activeTimelines.clear();
-            this.timelines.filter(t => t.category === category).forEach(t => this.activeTimelines.add(t.id));
-        }
-
-        this.resetView();
-        this.renderSidebar();
-        this.render();
-    }
-
 
     /**
      * 绘制所有时间轴（Canvas）与事件（DOM）
      */
     render() {
         const ctx = this.ctx;
-        const width = this.canvas.width;
-        const height = this.canvas.height;
+        const width = this.getCanvasWidth();
+        const height = this.getCanvasHeight();
 
         // 清空Canvas
         ctx.clearRect(0, 0, width, height);
@@ -486,10 +769,8 @@ class TimelineApp {
         if (this.activeTimelines.size === 0) {
             document.getElementById('emptyState').style.display = 'block';
             // 清空DOM
-            if (this._eventElements) {
-                this._eventElements.forEach(el => el.remove());
-                this._eventElements.clear();
-            }
+            this._eventElements.forEach(el => el.remove());
+            this._eventElements.clear();
             document.getElementById('eventsOverlay').innerHTML = '';
             return;
         }
@@ -516,12 +797,7 @@ class TimelineApp {
     }
 
     /**
-     * 
-     * @param {CanvasRenderingContext2D} ctx 
-     * @param {Timeline} timeline 
-     * @param {Int} trackIndex 
-     * @param {Number} trackHeight 
-     * @param {Number} width 
+     * 渲染单个时间轴轨道
      */
     renderTimelineTrack(ctx, timeline, trackIndex, trackHeight, width) {
         const y = trackIndex * trackHeight;
@@ -743,6 +1019,42 @@ class TimelineApp {
                     this.selectEvent(timeline, event, timeline.id);
                 });
 
+                // 移动端触摸支持
+                el.addEventListener('touchstart', (e) => {
+                    // 阻止浏览器默认行为，防止左右滑动导航
+                    if (e.touches.length === 1) {
+                        e.preventDefault();
+                        this.touchState.cardTouchStart = {
+                            x: e.touches[0].clientX,
+                            y: e.touches[0].clientY,
+                            time: Date.now()
+                        };
+                    }
+                }, { passive: false });
+
+                el.addEventListener('touchmove', (e) => {
+                    // 阻止浏览器默认行为，防止左右滑动导航
+                    e.preventDefault();
+                }, { passive: false });
+                
+                el.addEventListener('touchend', (e) => {
+                    if (this.touchState.cardTouchStart && !this.hasDragged) {
+                        const touch = e.changedTouches[0];
+                        const start = this.touchState.cardTouchStart;
+                        const dx = touch.clientX - start.x;
+                        const dy = touch.clientY - start.y;
+                        const dt = Date.now() - start.time;
+                        
+                        // 如果移动很小且时间短，视为点击
+                        if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.selectEvent(timeline, event, timeline.id);
+                        }
+                    }
+                    this.touchState.cardTouchStart = null;
+                }, { passive: false });
+
                 // 在标签上按下鼠标也能启动拖拽，并阻止文本选择
                 el.addEventListener('mousedown', (e) => this.handleMouseDown(e));
 
@@ -767,6 +1079,216 @@ class TimelineApp {
         if (fragment.children.length > 0) {
             overlay.appendChild(fragment);
         }
+    }
+
+    /**
+     * 渲染侧边栏
+     */
+    renderSidebar() {
+        const list = document.getElementById('timelineList');
+        list.innerHTML = '';
+
+        this.timelines.forEach(timeline => {
+            const item = document.createElement('div');
+            item.className = 'timeline-item' + (this.activeTimelines.has(timeline.id) ? ' active' : '');
+            item.innerHTML = `
+                <div class="timeline-color-indicator" style="background: ${timeline.color}"></div>
+                <div class="timeline-item-content">
+                    <div class="timeline-item-title">${timeline.title}</div>
+                    <div class="timeline-item-meta">
+                        <span class="timeline-item-category">${timeline.category}</span>
+                        <span>${timeline.events.length} 个事件</span>
+                    </div>
+                </div>
+            `;
+            item.onclick = () => this.toggleTimeline(timeline.id);
+            item.oncontextmenu = (e) => {
+                e.preventDefault();
+                this.showContextMenu(e, timeline.id);
+            };
+            
+            // 移动端长按支持
+            let longPressTimer = null;
+            item.addEventListener('touchstart', (e) => {
+                longPressTimer = setTimeout(() => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    this.showContextMenu({ clientX: touch.clientX, clientY: touch.clientY }, timeline.id);
+                }, 600);
+            }, { passive: false });
+            
+            item.addEventListener('touchend', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+            
+            item.addEventListener('touchmove', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+            
+            list.appendChild(item);
+        });
+    }
+
+    /**
+     * 渲染类别标签
+     */
+    renderCategories() {
+        const filter = document.getElementById('categoryFilter');
+        const categories = [...new Set(this.timelines.map(t => t.category))];
+
+        filter.innerHTML = '<span class="category-tag" onclick="app.filterCategory(\'all\')">全部</span>';
+        categories.forEach(cat => {
+            filter.innerHTML += `<span class="category-tag" onclick="app.filterCategory('${cat}')">${cat}</span>`;
+        });
+    }
+
+    /**
+     * 切换时间轴可视性
+     * @param {String} id 时间轴id
+     */
+    toggleTimeline(id) {
+        const wasEmpty = this.activeTimelines.size === 0;
+
+        if (this.activeTimelines.has(id)) this.activeTimelines.delete(id);
+        else this.activeTimelines.add(id);
+        this.renderSidebar();
+
+        if (wasEmpty && this.activeTimelines.size > 0) {
+            // 从空状态变为有内容，重置视图
+            this.resetView();
+        } else if (this.activeTimelines.size > 0) {
+            // 计算新的时间范围
+            let newMin = Infinity, newMax = -Infinity;
+            this.timelines
+                .filter(t => this.activeTimelines.has(t.id))
+                .forEach(t => {
+                    t.events.forEach(e => {
+                        if (e.year < newMin) newMin = e.year;
+                        if (e.year > newMax) newMax = e.year;
+                    });
+                });
+            const newSpan = newMax - newMin;
+            const currentSpan = this.viewEnd - this.viewStart;
+
+            // 只有当新范围比当前视图范围小时才重置视图
+            if (newSpan < currentSpan) {
+                this.resetView();
+            } else {
+                // 否则只更新范围选择器的数据，保持当前视图
+                this.updateMinMaxFromActiveTimelines();
+                this.updateRangeSlider();
+                this.render();
+            }
+        } else {
+            // 没有激活的时间轴了
+            this.render();
+        }
+    }
+
+    /**
+     * 切换侧边栏收起/展开
+     */
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebarToggle');
+        sidebar.classList.toggle('collapsed');
+        toggleBtn.classList.toggle('collapsed');
+        
+        // 动画期间持续重绘以保持流畅
+        const startTime = performance.now();
+        // 从 CSS 变量读取动画时长，保持与 CSS 同步
+        const duration = parseInt(getComputedStyle(document.documentElement)
+            .getPropertyValue('--sidebar-animation-duration')) || 300;
+        
+        const animate = (now) => {
+            const elapsed = now - startTime;
+            this.resizeCanvas();
+            this.render();
+            if (elapsed < duration) {
+                requestAnimationFrame(animate);
+            }
+        };
+        requestAnimationFrame(animate);
+    }
+
+    /**
+     * 切换日夜模式
+     */
+    toggleTheme() {
+        const html = document.documentElement;
+        const themeIcon = document.getElementById('themeIcon');
+        const themeText = document.getElementById('themeText');
+        const currentTheme = html.getAttribute('data-theme');
+        
+        if (currentTheme === 'light') {
+            html.removeAttribute('data-theme');
+            themeIcon.textContent = '☀️';
+            themeText.textContent = '日间';
+        } else {
+            html.setAttribute('data-theme', 'light');
+            themeIcon.textContent = '🌙';
+            themeText.textContent = '夜间';
+        }
+        
+        // 重绘以应用新主题
+        this.render();
+    }
+
+    /**
+     * 初始化主题（默认夜间模式）
+     */
+    initTheme() {
+        const themeIcon = document.getElementById('themeIcon');
+        const themeText = document.getElementById('themeText');
+        
+        // 默认夜间模式（无需从localStorage读取）
+        themeIcon.textContent = '☀️';
+        themeText.textContent = '日间';
+    }
+
+    /**
+     * 初始化当前时间刻度按钮状态
+     */
+    initCurrentTimeToggle() {
+        const btn = document.getElementById('currentTimeToggle');
+        if (this.showCurrentTime && btn) {
+            btn.classList.add('active');
+        }
+    }
+
+    /**
+     * 切换当前时间刻度显示
+     */
+    toggleCurrentTime() {
+        this.showCurrentTime = !this.showCurrentTime;
+        const btn = document.getElementById('currentTimeToggle');
+        
+        if (this.showCurrentTime) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+        
+        this.render();
+    }
+
+    filterCategory(category) {
+        if (category === 'all') {
+            this.timelines.forEach(t => this.activeTimelines.add(t.id));
+        } else {
+            this.activeTimelines.clear();
+            this.timelines.filter(t => t.category === category).forEach(t => this.activeTimelines.add(t.id));
+        }
+
+        this.resetView();
+        this.renderSidebar();
+        this.render();
     }
 
     /**
@@ -878,6 +1400,9 @@ class TimelineApp {
         return 0.5;
     }
 
+    /**
+     * 鼠标移动处理
+     */
     handleMouseMove(e) {
         if (this.dragging) {
             // 检测是否移动超过阈值
@@ -889,27 +1414,22 @@ class TimelineApp {
 
             const deltaX = e.clientX - this.lastMouseX;
             const timeSpan = this.viewEnd - this.viewStart;
-            const timeDelta = (deltaX / this.canvas.width) * timeSpan;
+            const timeDelta = (deltaX / this.getCanvasWidth()) * timeSpan;
 
             this.viewStart -= timeDelta;
             this.viewEnd -= timeDelta;
 
             // 边界检查
-            if (this.viewStart < this.minYear) {
-                this.viewEnd += this.minYear - this.viewStart;
-                this.viewStart = this.minYear;
-            }
-            if (this.viewEnd > this.maxYear) {
-                this.viewStart -= this.viewEnd - this.maxYear;
-                this.viewEnd = this.maxYear;
-            }
-
+            this.clampViewBounds();
             this.updateRangeSlider();
             this.render();
             this.lastMouseX = e.clientX;
         }
     }
 
+    /**
+     * 鼠标按下处理
+     */
     handleMouseDown(e) {
         if (e.button === 0) {
             this.dragging = true;
@@ -921,6 +1441,9 @@ class TimelineApp {
         }
     }
 
+    /**
+     * 鼠标释放处理
+     */
     handleMouseUp() {
         if (!this.dragging) return; // 如果没在拖拽，直接返回
         this.dragging = false;
@@ -928,6 +1451,9 @@ class TimelineApp {
         this.container.classList.remove('dragging');
     }
 
+    /**
+     * 滚轮缩放处理
+     */
     handleWheel(e) {
         // 防止页面滚动
         e.preventDefault();
@@ -935,7 +1461,7 @@ class TimelineApp {
         // 获取鼠标相对于Canvas的位置
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
-        const width = this.canvas.width;
+        const width = this.getCanvasWidth();
 
         // 计算鼠标指针当前对应的时间点（世界坐标）
         const timeSpan = this.viewEnd - this.viewStart;
@@ -947,11 +1473,7 @@ class TimelineApp {
 
         // 限制最大缩放范围（不能小于当前时间轴总跨度）
         const maxSpan = this.maxYear - this.minYear;
-        if (newSpan > maxSpan) {
-            newSpan = maxSpan;
-        }
-        // 限制最小缩放范围（避免过度放大）
-        if (newSpan < MIN_YEAR_SPAN) newSpan = MIN_YEAR_SPAN;
+        newSpan = clamp(newSpan, MIN_YEAR_SPAN, maxSpan);
 
         // 计算鼠标位置在视口中的比例（0到1之间）
         const ratio = mouseX / width;
@@ -1035,8 +1557,8 @@ class TimelineApp {
         }
         
         // 边界检查
-        if (start < this.minYear) start = this.minYear;
-        if (end > this.maxYear) end = this.maxYear;
+        start = clamp(start, this.minYear, this.maxYear);
+        end = clamp(end, this.minYear, this.maxYear);
         
         this.viewStart = start;
         this.viewEnd = end;
@@ -1195,8 +1717,26 @@ class TimelineApp {
     showContextMenu(e, timelineId) {
         this.contextMenuTimelineId = timelineId;
         const menu = document.getElementById('contextMenu');
-        menu.style.left = e.clientX + 'px';
-        menu.style.top = e.clientY + 'px';
+        
+        // 支持鼠标事件和触摸事件
+        let x = e.clientX;
+        let y = e.clientY;
+        
+        // 确保菜单不会超出屏幕
+        const menuWidth = 120;
+        const menuHeight = 80;
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        if (x + menuWidth > windowWidth) {
+            x = windowWidth - menuWidth - 10;
+        }
+        if (y + menuHeight > windowHeight) {
+            y = windowHeight - menuHeight - 10;
+        }
+        
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
         menu.classList.add('active');
     }
 

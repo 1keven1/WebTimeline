@@ -13,6 +13,9 @@
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
     --sidebar-animation-duration: 300ms;
+    
+    /* 布局高度变量 */
+    --header-height: 60px;
 }
 
 /* 日间模式配色 */
@@ -50,7 +53,7 @@ body {
 
 /* 顶部控制栏 */
 .header {
-    height: 60px;
+    height: var(--header-height);
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
     display: flex;
@@ -128,7 +131,7 @@ body {
 /* 主体布局 */
 .main-container {
     display: flex;
-    height: calc(100vh - 60px);
+    height: calc(100vh - var(--header-height));
     overflow: hidden;
 }
 
@@ -289,6 +292,7 @@ body {
     height: 0;
     z-index: 10;
     pointer-events: none;
+    touch-action: none; /* 禁用浏览器默认触摸行为，防止左右滑动导航 */
 }
 
 /* 纵向标签（默认状态） */
@@ -315,6 +319,7 @@ body {
     visibility: visible;
     opacity: 1;
     pointer-events: auto;
+    touch-action: none; /* 禁用浏览器默认触摸行为，防止左右滑动导航 */
     /* 动画与变换原点 */
     transition: opacity 0.15s ease, visibility 0.15s, transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
     transform-origin: top center;
@@ -412,6 +417,7 @@ body {
     background-color: #dddddd;
     /* border-width: 3px; */
     pointer-events: auto; /* 允许交互 */
+    touch-action: none; /* 禁用浏览器默认触摸行为，防止左右滑动导航 */
 }
 /* 选中状态下的大卡片内容颜色微调 */
 .event-card.active .event-popup .title {
@@ -499,10 +505,7 @@ body {
     cursor: grab;
 }
 
-.canvas-container:active {
-    cursor: grabbing;
-}
-
+.canvas-container:active,
 .canvas-container.dragging {
     cursor: grabbing;
 }
@@ -519,6 +522,7 @@ body {
     pointer-events: none;
     overflow: visible;
     z-index: 10;
+    touch-action: none; /* 禁用浏览器默认触摸行为，防止左右滑动导航 */
 }
 
 /* 底部范围选择器 */
@@ -530,6 +534,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    z-index: 50;
 }
 
 .range-slider-container {
@@ -568,9 +573,24 @@ body {
     cursor: ew-resize;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     z-index: 10;
+    touch-action: none; /* 禁用浏览器默认触摸行为 */
 }
 
-.range-handle:hover {
+/* 移动端增大触摸区域 */
+.range-handle::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    z-index: -1;
+}
+
+.range-handle:hover,
+.range-handle:active {
     background: var(--accent-blue);
 }
 
@@ -594,7 +614,6 @@ body {
     justify-content: space-between;
     font-size: 12px;
     color: var(--text-secondary);
-    margin-top: 8px;
 }
 
 /* 详情面板 */
@@ -901,20 +920,6 @@ body {
     opacity: 1;
 }
 
-/* 时间轴轨道标签 */
-.track-label {
-    position: absolute;
-    left: 20px;
-    background: var(--bg-secondary);
-    padding: 4px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    border: 1px solid var(--border-color);
-    pointer-events: none;
-    z-index: 50;
-}
-
 /* 空状态 */
 .empty-state {
     position: absolute;
@@ -933,6 +938,85 @@ body {
 
 .empty-state-text {
     font-size: 16px;
+}
+
+/* 横屏提示遮罩 */
+.orientation-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-primary);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+}
+
+.orientation-overlay.active {
+    display: flex;
+}
+
+.orientation-content {
+    max-width: 400px;
+}
+
+.orientation-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+    animation: rotatePhone 2s ease-in-out infinite;
+}
+
+@keyframes rotatePhone {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+}
+
+.orientation-text {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.orientation-subtext {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.orientation-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+}
+
+.orientation-btn:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+}
+
+.orientation-btn:active {
+    transform: translateY(0);
+}
+
+.orientation-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
 }
 
 /* 右键菜单 */
@@ -998,6 +1082,168 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
+}
+
+/* 移动端优化 */
+@media screen and (max-width: 1024px) {
+    :root {
+        --header-height: 50px;
+    }
+    
+    .header {
+        padding: 0 12px;
+        gap: 10px;
+    }
+    
+    .logo {
+        font-size: 16px;
+        margin-right: 10px;
+    }
+    
+    .btn {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    .category-tag {
+        padding: 3px 8px;
+        font-size: 11px;
+    }
+    
+    .sidebar {
+        width: 200px;
+    }
+    
+    .sidebar-toggle {
+        left: 200px;
+    }
+
+    .sidebar-header {
+        padding: 12px;
+    }
+    
+    .toolbar {
+        height: 44px;
+        padding: 0 12px;
+        gap: 10px;
+    }
+    
+    .view-range-inputs .range-input {
+        width: 60px;
+        font-size: 12px;
+    }
+    
+    .detail-panel {
+        width: 100%;
+        max-width: 400px;
+        right: 0;
+        top: 110px;
+        height: calc(100vh - 160px);
+        border-radius: 16px 0 0 16px;
+    }
+    
+    /* 移动端事件卡片优化 */
+    .event-label {
+        font-size: 12px;
+        padding: 6px 3px;
+        max-height: 120px;
+    }
+    
+    .event-popup {
+        width: 150px;
+        padding: 6px;
+    }
+    
+    .event-popup .year {
+        font-size: 18px;
+    }
+    
+    .event-popup .title {
+        font-size: 14px;
+    }
+    
+    /* 范围选择器优化 */
+    .range-selector {
+        height: 70px;
+        padding: 5px 20px;
+    }
+    
+    .range-handle {
+        width: 24px;
+        height: 32px;
+    }
+    
+    /* 移动端增大触摸区域 */
+    .range-handle::before {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .handle-label {
+        font-size: 11px;
+        padding: 2px 6px;
+    }
+    
+    .range-slider-container {
+        height: 40px;
+    }
+}
+
+/* 竖屏时显示横屏提示（可选，可以全屏锁定横屏代替） */
+@media screen and (orientation: portrait) and (max-width: 1024px) {
+    /* 不再强制隐藏内容，用户可以点击按钮全屏横屏 */
+    .orientation-overlay.active {
+        display: flex;
+    }
+}
+
+/* 禁用移动端双击缩放 */
+@media screen and (max-width: 1024px) {
+    * {
+        touch-action: manipulation;
+    }
+    
+    .canvas-container {
+        touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    /* 优化移动端按钮和控件触摸 */
+    .btn, .timeline-item, .range-handle, .category-tag, .detail-close, .modal-close {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* 移动端事件卡片触摸反馈 */
+    .event-label {
+        touch-action: manipulation;
+    }
+    
+    /* 移动端详情面板优化 */
+    .detail-panel {
+        touch-action: pan-y;
+    }
+    
+    .detail-content {
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* 移动端模态框优化 */
+    .modal {
+        touch-action: pan-y;
+    }
+    
+    .modal-body {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* 移动端时间轴列表优化 */
+    .timeline-list {
+        -webkit-overflow-scrolling: touch;
+    }
 }
 
 /* 响应式 */
