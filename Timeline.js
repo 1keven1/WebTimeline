@@ -150,9 +150,15 @@ class TimelineApp {
     }
 
     async init(timelineIndex, defaultTimelineIds) {
+        // 如果是微信浏览器，直接显示提示覆盖层，不加载其他内容
+        if (this.isWeChatBrowser()) {
+            const wechatOverlay = document.getElementById('wechatOverlay');
+            if (wechatOverlay) wechatOverlay.classList.add('active');
+            return;
+        }
+
         // 初始检查屏幕方向（尤其是移动设备） 竖屏则显示提示
         this.checkOrientation();
-        
         this.setupEventListeners();
         this.setupRangeSlider();
         this.initTheme();
@@ -342,25 +348,9 @@ class TimelineApp {
     }
 
     /**
-     * 检测是否是 iOS 设备
-     */
-    isIOS() {
-        return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    }
-
-    /**
      * 检查屏幕方向
-     * 微信浏览器直接提示用外部浏览器
      */
     checkOrientation() {
-        // 微信浏览器直接显示提示，不做横屏检测
-        if (this.isWeChatBrowser()) {
-            const wechatOverlay = document.getElementById('wechatOverlay');
-            if (wechatOverlay) wechatOverlay.classList.add('active');
-            return;
-        }
-
         const overlay = document.getElementById('orientationOverlay');
         if (!overlay) return;
 
@@ -426,8 +416,6 @@ class TimelineApp {
      * 进入全屏并锁定横屏
      */
     async enterFullscreenAndLock() {
-        if (this.isWeChatBrowser()) return;
-        
         try {
             await requestFullscreen(document.documentElement);
             if (screen.orientation?.lock) {
@@ -914,9 +902,9 @@ class TimelineApp {
             const fraction = t - year;
             if (fraction > 0.001) {
                 const month = Math.min(11, Math.floor(fraction * 12));
-                ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, height - 10);
+                ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, 20);
             } else {
-                ctx.fillText(year.toString(), x, height - 10);
+                ctx.fillText(year.toString(), x, 20);
             }
         }
 
@@ -939,7 +927,7 @@ class TimelineApp {
                 ctx.fillStyle = CURRENT_YEAR_COLOR;
                 ctx.font = CURRENT_YEAR_FONT;
                 ctx.textAlign = 'center';
-                ctx.fillText(this.formatEventDate(currentEvent), x, height - 10);
+                ctx.fillText(this.formatEventDate(currentEvent), x, 20);
             }
         }
 
