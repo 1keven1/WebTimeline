@@ -4,8 +4,7 @@
 const MIN_LABEL_SPACING = {
     desktop: 25,  // 电脑端标签间最小像素间距
     mobile: 20,   // 移动端标签间最小像素间距（屏幕较小，用更小值）
-    get() {
-        const isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 1024;
+    get(isMobile) {
         return isMobile ? this.mobile : this.desktop;
     }
 };
@@ -41,11 +40,19 @@ const debounce = (fn, delay) => {
 };
 
 /**
+ * HTML 转义函数，防止 XSS
+ */
+const escapeHtml = (text) => {
+    const map = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
+    return text.replace(/[<>&"']/g, m => map[m]);
+};
+
+/**
  * 请求全屏（带浏览器前缀兼容）
  */
 const requestFullscreen = (elem) => {
-    const fn = elem.requestFullscreen || elem.webkitRequestFullscreen || 
-               elem.mozRequestFullScreen || elem.msRequestFullscreen;
+    const fn = elem.requestFullscreen || elem.webkitRequestFullscreen ||
+        elem.mozRequestFullScreen || elem.msRequestFullscreen;
     return fn ? fn.call(elem) : Promise.reject('不支持全屏');
 };
 
@@ -113,6 +120,7 @@ class TimelineApp {
         this.contextMenuTimelineId = null;
         this.showCurrentTime = true; // 是否显示当前时间刻度
         this._dpr = 1; // 设备像素比，默认为1，后续会在resizeCanvas中更新
+        this.isMobile = false; // 是否为移动端，后续会在init中检测并设置
 
         // 拖拽相关
         this.dragging = false;
@@ -150,15 +158,20 @@ class TimelineApp {
     }
 
     async init(timelineIndex, defaultTimelineIds) {
-        // 如果是微信浏览器，直接显示提示覆盖层，不加载其他内容
-        if (this.isWeChatBrowser()) {
-            const wechatOverlay = document.getElementById('wechatOverlay');
-            if (wechatOverlay) wechatOverlay.classList.add('active');
-            return;
-        }
+        // 检测设备类型：是否为移动端（触摸设备或屏幕宽度<=1024px）
+        this.isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 1024;
 
-        // 初始检查屏幕方向（尤其是移动设备） 竖屏则显示提示
-        this.checkOrientation();
+        if (this.isMobile) {
+            // 如果是微信浏览器，直接显示提示覆盖层，不加载其他内容
+            if (this.isWeChatBrowser()) {
+                const wechatOverlay = document.getElementById('wechatOverlay');
+                if (wechatOverlay) wechatOverlay.classList.add('active');
+                return;
+            }
+
+            // 初始检查屏幕方向（仅移动端）
+            this.checkOrientation_Mobile();
+        }
         this.setupEventListeners();
         this.setupRangeSlider();
         this.initTheme();
@@ -168,7 +181,7 @@ class TimelineApp {
 
         // 加载时间轴数据
         await this.loadData(timelineIndex);
-        
+
         // 默认激活时间轴（支持单个字符串或数组）
         const ids = Array.isArray(defaultTimelineIds) ? defaultTimelineIds : [defaultTimelineIds];
         ids.forEach(id => {
@@ -176,12 +189,12 @@ class TimelineApp {
                 this.activeTimelines.add(id);
             }
         });
-        
+
         // 如果有激活的时间轴，重置视图并渲染
         if (this.activeTimelines.size > 0) {
             this.resetView();
         }
-        
+
         this.renderSidebar();
         // 生成类别标签
         this.renderCategories();
@@ -289,30 +302,30 @@ class TimelineApp {
         });
 
         // 触摸事件支持
-        this.setupTouchEventListeners();
+        if (this.isMobile) this.setupTouchEventListeners_Mobile();
     }
 
     /**
-     * 设置触摸事件监听器
+     * 设置触摸事件监听器（移动端）
      */
-    setupTouchEventListeners() {
+    setupTouchEventListeners_Mobile() {
         const container = this.container;
-        
+
         // 触摸开始
         container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-        
+
         // 触摸移动
         container.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
-        
+
         // 触摸结束
         container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
         container.addEventListener('touchcancel', (e) => this.handleTouchEnd(e), { passive: false });
 
         // 初始化方向检测
-        this.checkOrientation();
+        this.checkOrientation_Mobile();
         // 使用防抖优化resize事件
         const debouncedCheck = debounce(() => {
-            this.checkOrientation();
+            this.checkOrientation_Mobile();
         }, 100);
         window.addEventListener('resize', () => {
             debouncedCheck();
@@ -320,7 +333,7 @@ class TimelineApp {
             this.updateViewportHeight();
         });
         window.addEventListener('orientationchange', () => {
-            this.checkOrientation();
+            this.checkOrientation_Mobile();
             // 方向变化后延迟重新计算，确保尺寸正确
             setTimeout(() => {
                 this.updateViewportHeight();
@@ -348,9 +361,9 @@ class TimelineApp {
     }
 
     /**
-     * 检查屏幕方向
+     * 检查屏幕方向（仅移动端）
      */
-    checkOrientation() {
+    checkOrientation_Mobile() {
         const overlay = document.getElementById('orientationOverlay');
         if (!overlay) return;
 
@@ -361,7 +374,7 @@ class TimelineApp {
         const isLandscapeByAngle = Math.abs(window.orientation) === 90;
         const isLandscapeBySize = window.innerWidth > window.innerHeight;
         const isActuallyLandscape = isLandscape || isLandscapeByAngle || isLandscapeBySize;
-        
+
         // 横屏时隐藏覆盖层
         if (isActuallyLandscape) {
             overlay.classList.remove('active');
@@ -379,10 +392,10 @@ class TimelineApp {
     updateFullscreenButtonState() {
         const btn = document.getElementById('fullscreenBtn');
         if (!btn) return;
-        
-        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || 
-                            document.mozFullScreenElement || document.msFullscreenElement;
-        
+
+        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement ||
+            document.mozFullScreenElement || document.msFullscreenElement;
+
         if (isFullscreen) {
             btn.classList.add('active');
         } else {
@@ -394,12 +407,12 @@ class TimelineApp {
      * 切换全屏模式
      */
     async toggleFullscreen() {
-        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || 
-                            document.mozFullScreenElement || document.msFullscreenElement;
-        
+        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement ||
+            document.mozFullScreenElement || document.msFullscreenElement;
+
         if (isFullscreen) {
-            const exitFn = document.exitFullscreen || document.webkitExitFullscreen || 
-                          document.mozCancelFullScreen || document.msExitFullscreen;
+            const exitFn = document.exitFullscreen || document.webkitExitFullscreen ||
+                document.mozCancelFullScreen || document.msExitFullscreen;
             if (exitFn) await exitFn.call(document);
         } else {
             try {
@@ -422,11 +435,11 @@ class TimelineApp {
                 await screen.orientation.lock('landscape');
                 this.showToast('已锁定横屏模式');
             } else {
-                this.showToast('请手动旋转设备至横屏');
+                this.showToast('浏览器不支持，请手动旋转设备至横屏');
             }
             setTimeout(() => { this.resizeCanvas(); this.render(); }, 300);
         } catch (err) {
-            this.showToast('请手动旋转设备至横屏');
+            this.showToast('浏览器不支持，请手动旋转设备至横屏');
         }
     }
 
@@ -435,30 +448,30 @@ class TimelineApp {
      */
     handleTouchStart(e) {
         e.preventDefault();
-        
+
         const touches = e.touches;
         const state = this.touchState;
-        
+
         state.touches = Array.from(touches);
         state.startTouches = Array.from(touches);
         state.isTouching = true;
         state.isLongPress = false;
         state.touchStartTime = Date.now();
-        
+
         // 记录当前视图范围（用于缩放）
         state.startViewStart = this.viewStart;
         state.startViewEnd = this.viewEnd;
-        
+
         if (touches.length === 1) {
             // 单指：可能是拖动或长按
             const touch = touches[0];
             state.startX = touch.clientX;
             state.startY = touch.clientY;
-            
+
             // 检查是否点击在时间轴项上
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
             const timelineItem = target?.closest('.timeline-item');
-            
+
             if (timelineItem) {
                 // 在时间轴项上，设置长按定时器
                 state.longPressTarget = timelineItem;
@@ -498,25 +511,25 @@ class TimelineApp {
      */
     handleTouchMove(e) {
         e.preventDefault();
-        
+
         const touches = e.touches;
         const state = this.touchState;
-        
+
         if (!state.isTouching) return;
-        
+
         if (touches.length === 1 && state.touches.length === 1) {
             // 单指拖动
             const touch = touches[0];
             const dx = touch.clientX - state.startX;
             const dy = touch.clientY - state.startY;
-            
+
             // 检测移动距离，如果移动超过阈值则取消长按
             if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
                 if (state.longPressTimer) {
                     clearTimeout(state.longPressTimer);
                     state.longPressTimer = null;
                 }
-                
+
                 if (!this.dragging && !state.longPressTarget) {
                     // 开始拖动
                     this.dragging = true;
@@ -527,21 +540,21 @@ class TimelineApp {
                     this.container.classList.add('dragging');
                 }
             }
-            
+
             if (this.dragging) {
                 // 检测是否移动超过阈值
                 if (Math.abs(touch.clientX - this.dragStartX) > DRAG_THRESHOLD ||
                     Math.abs(touch.clientY - this.dragStartY) > DRAG_THRESHOLD) {
                     this.hasDragged = true;
                 }
-                
+
                 this.handleDragMove(touch.clientX);
             }
         } else if (touches.length === 2 && state.startTouches.length === 2) {
             // 双指缩放 + 平移
             this.handlePinchMove(touches);
         }
-        
+
         state.touches = Array.from(touches);
     }
 
@@ -550,32 +563,32 @@ class TimelineApp {
      */
     handleTouchEnd(e) {
         e.preventDefault();
-        
+
         const state = this.touchState;
         const touches = e.touches;
-        
+
         // 清除长按定时器
         if (state.longPressTimer) {
             clearTimeout(state.longPressTimer);
             state.longPressTimer = null;
         }
-        
+
         if (touches.length === 0) {
             // 所有手指都离开
             state.isTouching = false;
             state.touches = [];
-            
+
             // 结束拖动
             if (this.dragging) {
                 this.dragging = false;
                 this.container.classList.remove('dragging');
             }
-            
+
             // 如果不是长按且没有拖动，则是点击
             if (!state.isLongPress && !this.hasDragged) {
                 const touch = e.changedTouches[0];
                 const target = document.elementFromPoint(touch.clientX, touch.clientY);
-                
+
                 // 检查是否点击在时间轴项上
                 const timelineItem = target?.closest('.timeline-item');
                 if (timelineItem && state.longPressTarget === timelineItem) {
@@ -588,7 +601,7 @@ class TimelineApp {
                     this.render();
                 }
             }
-            
+
             state.longPressTarget = null;
             state.isLongPress = false;
             this.hasDragged = false;
@@ -597,7 +610,7 @@ class TimelineApp {
             state.touches = Array.from(touches);
             state.startTouches = Array.from(touches);
             state.startDistance = touches.length === 2 ? this.getTouchDistanceX(touches) : 0;
-            
+
             if (touches.length === 1) {
                 // 双指松开一个变单指，更新单指拖动的起始状态
                 state.startX = touches[0].clientX;
@@ -725,7 +738,7 @@ class TimelineApp {
 
         leftHandle.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag('left'); });
         leftHandle.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag('left'); }, { passive: false });
-        
+
         rightHandle.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag('right'); });
         rightHandle.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag('right'); }, { passive: false });
     }
@@ -736,18 +749,18 @@ class TimelineApp {
     resizeCanvas() {
         const rect = this.container.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        
+
         // 设置 Canvas 实际像素尺寸（考虑设备像素比）
         this.canvas.width = Math.floor(rect.width * dpr);
         this.canvas.height = Math.floor(rect.height * dpr);
-        
+
         // 设置 Canvas CSS 尺寸
         this.canvas.style.width = rect.width + 'px';
         this.canvas.style.height = rect.height + 'px';
-        
+
         // 缩放绘图上下文以适应高 DPR
         this.ctx.scale(dpr, dpr);
-        
+
         // 保存 DPR 供其他方法使用
         this._dpr = dpr;
     }
@@ -900,11 +913,14 @@ class TimelineApp {
             // 小数部分转换为月份显示
             const year = Math.floor(t);
             const fraction = t - year;
+            // 电脑端上下都显示年份，移动端只在上方显示
             if (fraction > 0.001) {
                 const month = Math.min(11, Math.floor(fraction * 12));
                 ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, 20);
+                if (!this.isMobile) ctx.fillText(`${year}.${month.toString().padStart(2, '0')}`, x, height - 10);
             } else {
                 ctx.fillText(year.toString(), x, 20);
+                if (!this.isMobile) ctx.fillText(year.toString(), x, height - 10);
             }
         }
 
@@ -914,20 +930,21 @@ class TimelineApp {
             const currentDecimalYear = this.getDecimalYear(currentEvent);
             if (currentDecimalYear >= this.viewStart && currentDecimalYear <= this.viewEnd) {
                 const x = ((currentDecimalYear - this.viewStart) / timeSpan) * width;
-                
+
                 // 刻度线
-                ctx.strokeStyle = CURRENT_YEAR_COLOR; 
+                ctx.strokeStyle = CURRENT_YEAR_COLOR;
                 ctx.lineWidth = CURRENT_YEAR_WIDTH;
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x, height);
                 ctx.stroke();
-                
+
                 // 当前年份标签
                 ctx.fillStyle = CURRENT_YEAR_COLOR;
                 ctx.font = CURRENT_YEAR_FONT;
                 ctx.textAlign = 'center';
-                ctx.fillText(this.formatEventDate(currentEvent), x, 20);
+                ctx.fillText(this.formatEventDate(currentEvent), x, 35);
+                if (!this.isMobile) ctx.fillText(this.formatEventDate(currentEvent), x, height - 25);
             }
         }
 
@@ -974,7 +991,7 @@ class TimelineApp {
             sorted.forEach(item => {
                 let hasSpace = true;
                 for (const pos of labelPositions) {
-                    if (Math.abs(item.x - pos) < MIN_LABEL_SPACING.get()) {
+                    if (Math.abs(item.x - pos) < MIN_LABEL_SPACING.get(this.isMobile)) {
                         hasSpace = false;
                         break;
                     }
@@ -1043,9 +1060,9 @@ class TimelineApp {
                 // 移动端触摸支持
                 el.addEventListener('touchstart', (e) => {
                     e.preventDefault();
-                    
+
                     const state = this.touchState;
-                    
+
                     if (e.touches.length === 1) {
                         // 单指：启动拖动
                         state.isTouching = true;
@@ -1055,7 +1072,7 @@ class TimelineApp {
                         this.dragStartY = e.touches[0].clientY;
                         this.lastMouseX = e.touches[0].clientX;
                         this.container.classList.add('dragging');
-                        
+
                         state.cardTouchStart = {
                             x: e.touches[0].clientX,
                             y: e.touches[0].clientY,
@@ -1066,7 +1083,7 @@ class TimelineApp {
                         // 取消单指拖动
                         this.dragging = false;
                         this.container.classList.remove('dragging');
-                        
+
                         // 设置双指缩放状态
                         state.touches = Array.from(e.touches);
                         state.startTouches = Array.from(e.touches);
@@ -1081,10 +1098,10 @@ class TimelineApp {
                 el.addEventListener('touchmove', (e) => {
                     // 阻止浏览器默认行为，防止左右滑动导航
                     e.preventDefault();
-                    
+
                     const touch = e.touches[0];
                     const state = this.touchState;
-                    
+
                     if (e.touches.length === 1 && this.dragging) {
                         // 单指拖动
                         if (Math.abs(touch.clientX - this.dragStartX) > DRAG_THRESHOLD ||
@@ -1096,25 +1113,25 @@ class TimelineApp {
                         // 双指缩放（因为事件不会冒泡到容器，在这里处理）
                         this.handlePinchMove(e.touches);
                     }
-                    
+
                     // 更新状态
                     state.touches = Array.from(e.touches);
                 }, { passive: false });
-                
+
                 el.addEventListener('touchend', (e) => {
                     // 结束拖动
                     if (this.dragging) {
                         this.dragging = false;
                         this.container.classList.remove('dragging');
                     }
-                    
+
                     if (this.touchState.cardTouchStart && !this.hasDragged) {
                         const touch = e.changedTouches[0];
                         const start = this.touchState.cardTouchStart;
                         const dx = touch.clientX - start.x;
                         const dy = touch.clientY - start.y;
                         const dt = Date.now() - start.time;
-                        
+
                         // 如果移动很小且时间短，视为点击
                         if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
                             e.preventDefault();
@@ -1177,7 +1194,7 @@ class TimelineApp {
                 e.preventDefault();
                 this.showContextMenu(e, timeline.id);
             };
-            
+
             // 移动端长按支持
             let longPressTimer = null;
             item.addEventListener('touchstart', (e) => {
@@ -1187,21 +1204,21 @@ class TimelineApp {
                     this.showContextMenu({ clientX: touch.clientX, clientY: touch.clientY }, timeline.id);
                 }, 600);
             }, { passive: false });
-            
+
             item.addEventListener('touchend', () => {
                 if (longPressTimer) {
                     clearTimeout(longPressTimer);
                     longPressTimer = null;
                 }
             });
-            
+
             item.addEventListener('touchmove', () => {
                 if (longPressTimer) {
                     clearTimeout(longPressTimer);
                     longPressTimer = null;
                 }
             });
-            
+
             list.appendChild(item);
         });
     }
@@ -1270,13 +1287,13 @@ class TimelineApp {
         const toggleBtn = document.getElementById('sidebarToggle');
         sidebar.classList.toggle('collapsed');
         toggleBtn.classList.toggle('collapsed');
-        
+
         // 动画期间持续重绘以保持流畅
         const startTime = performance.now();
         // 从 CSS 变量读取动画时长，保持与 CSS 同步
         const duration = parseInt(getComputedStyle(document.documentElement)
             .getPropertyValue('--sidebar-animation-duration')) || 300;
-        
+
         const animate = (now) => {
             const elapsed = now - startTime;
             this.resizeCanvas();
@@ -1296,7 +1313,7 @@ class TimelineApp {
         const themeIcon = document.getElementById('themeIcon');
         const themeText = document.getElementById('themeText');
         const currentTheme = html.getAttribute('data-theme');
-        
+
         if (currentTheme === 'light') {
             html.removeAttribute('data-theme');
             themeIcon.textContent = '☀️';
@@ -1306,7 +1323,7 @@ class TimelineApp {
             themeIcon.textContent = '🌙';
             themeText.textContent = '夜间';
         }
-        
+
         // 重绘以应用新主题
         this.render();
     }
@@ -1317,7 +1334,7 @@ class TimelineApp {
     initTheme() {
         const themeIcon = document.getElementById('themeIcon');
         const themeText = document.getElementById('themeText');
-        
+
         // 默认夜间模式（无需从localStorage读取）
         themeIcon.textContent = '☀️';
         themeText.textContent = '日间';
@@ -1339,13 +1356,13 @@ class TimelineApp {
     toggleCurrentTime() {
         this.showCurrentTime = !this.showCurrentTime;
         const btn = document.getElementById('currentTimeToggle');
-        
+
         if (this.showCurrentTime) {
             btn.classList.add('active');
         } else {
             btn.classList.remove('active');
         }
-        
+
         this.render();
     }
 
@@ -1476,7 +1493,7 @@ class TimelineApp {
      */
     handleDragMove(clientX) {
         if (!this.dragging) return;
-        
+
         const deltaX = clientX - this.lastMouseX;
         const timeSpan = this.viewEnd - this.viewStart;
         const timeDelta = (deltaX / this.getCanvasWidth()) * timeSpan;
@@ -1497,36 +1514,36 @@ class TimelineApp {
     handlePinchMove(touches) {
         const state = this.touchState;
         const currentDistance = this.getTouchDistanceX(touches);
-        
+
         if (state.startDistance <= 0) return;
-        
+
         // 1. 计算缩放
         const scale = currentDistance / state.startDistance;
         const startSpan = state.panStartViewEnd - state.panStartViewStart;
         let newSpan = startSpan / scale;
-        
+
         // 限制缩放范围
         const maxSpan = this.maxYear - this.minYear;
         newSpan = clamp(newSpan, MIN_YEAR_SPAN, maxSpan);
-        
+
         // 2. 计算双指中心点的移动（平移）
         const currentCenterX = (touches[0].clientX + touches[1].clientX) / 2;
         const deltaCenterX = currentCenterX - state.startCenterX;
-        
+
         const rect = this.canvas.getBoundingClientRect();
         const canvasWidth = this.getCanvasWidth();
-        
+
         // 计算平移对应的时间变化
         const timeDelta = (deltaCenterX / canvasWidth) * newSpan;
-        
+
         // 3. 计算中心点对应的时间位置（考虑缩放后的位置）
         const centerRatio = (state.startCenterX - rect.left) / canvasWidth;
         const centerTime = state.panStartViewStart + centerRatio * startSpan;
-        
+
         // 4. 综合缩放和平移计算新视图
         let newStart = centerTime - centerRatio * newSpan - timeDelta;
         let newEnd = centerTime + (1 - centerRatio) * newSpan - timeDelta;
-        
+
         // 5. 边界检查
         if (newStart < this.minYear) {
             newStart = this.minYear;
@@ -1536,7 +1553,7 @@ class TimelineApp {
             newEnd = this.maxYear;
             newStart = this.maxYear - newSpan;
         }
-        
+
         this.viewStart = newStart;
         this.viewEnd = newEnd;
         this.updateRangeSlider();
@@ -1666,35 +1683,35 @@ class TimelineApp {
     applyViewRange() {
         const startInput = document.getElementById('viewStartInput');
         const endInput = document.getElementById('viewEndInput');
-        
+
         let start = parseInt(startInput.value);
         let end = parseInt(endInput.value);
-        
+
         if (isNaN(start) || isNaN(end)) {
             this.showToast('请输入有效的年份');
             return;
         }
-        
+
         // 确保起始小于结束
         if (start >= end) {
             this.showToast('起始年份必须小于结束年份');
             return;
         }
-        
+
         // 限制最小跨度
         const span = end - start;
         if (span < MIN_YEAR_SPAN) {
             end = start + MIN_YEAR_SPAN;
             this.showToast(`视图范围至少${MIN_YEAR_SPAN}年，已自动调整`);
         }
-        
+
         // 边界检查
         start = clamp(start, this.minYear, this.maxYear);
         end = clamp(end, this.minYear, this.maxYear);
-        
+
         this.viewStart = start;
         this.viewEnd = end;
-        
+
         this.updateRangeSlider();
         this.render();
     }
@@ -1713,10 +1730,16 @@ class TimelineApp {
         document.getElementById('detailYear').textContent = this.getDetailedDateDesc(event);
         document.getElementById('detailTitle').textContent = event.title;
         document.getElementById('detailDesc').textContent = event.desc || '暂无简介';
-        document.getElementById('detailContent').textContent = event.detail || '暂无详细信息';
+        // 将换行符分隔的文本转换为段落 HTML，以便 CSS 控制段间距
+        const detailText = event.detail || '暂无详细信息';
+        // 先统一换行符为 \n，再分割
+        const paragraphs = detailText.replace(/\r\n/g, '\n').split('\n').map(p => p.trim()).filter(p => p);
+        const detailHtml = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
+        document.getElementById('detailContent').innerHTML = detailHtml;
         document.getElementById('detailTimeline').textContent = timeline.title;
         document.getElementById('detailTimeline').style.color = timeline.color;
         document.getElementById('detailEra').textContent = event.era || '-';
+        document.getElementById('detailContent').scrollTop = 0; // 滚动回顶部
 
         // 打开面板
         document.getElementById('detailPanel').classList.add('open');
@@ -1838,24 +1861,24 @@ class TimelineApp {
     showContextMenu(e, timelineId) {
         this.contextMenuTimelineId = timelineId;
         const menu = document.getElementById('contextMenu');
-        
+
         // 支持鼠标事件和触摸事件
         let x = e.clientX;
         let y = e.clientY;
-        
+
         // 确保菜单不会超出屏幕
         const menuWidth = 120;
         const menuHeight = 80;
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
-        
+
         if (x + menuWidth > windowWidth) {
             x = windowWidth - menuWidth - 10;
         }
         if (y + menuHeight > windowHeight) {
             y = windowHeight - menuHeight - 10;
         }
-        
+
         menu.style.left = x + 'px';
         menu.style.top = y + 'px';
         menu.classList.add('active');

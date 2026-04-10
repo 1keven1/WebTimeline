@@ -752,6 +752,14 @@ body {
     font-size: 14px;
 }
 
+.detail-text p {
+    margin: 0 0 3px 0; /* 段间距，可调 */
+}
+
+.detail-text p:last-child {
+    margin-bottom: 0; /* 最后一段无下边距 */
+}
+
 .detail-meta {
     display: flex;
     gap: 16px;
@@ -1280,7 +1288,7 @@ body {
     .event-label {
         font-size: 11px;
         padding: 3px 2px;
-        max-height: 120px;
+        max-height: 100px;
         letter-spacing: normal;
     }
     
@@ -1351,6 +1359,11 @@ body {
     .btn, .timeline-item, .range-handle, .category-tag, .detail-close, .modal-close {
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* 移动端取消按钮悬浮位移效果 */
+    .btn:hover, .btn:active {
+        transform: none;
     }
     
     /* 移动端事件卡片触摸反馈 */
