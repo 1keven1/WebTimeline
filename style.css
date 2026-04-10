@@ -159,6 +159,7 @@ body {
     display: flex;
     height: calc(var(--vh, 100vh) - var(--header-height));
     overflow: hidden;
+    position: relative;
 }
 
 /* 侧边栏 - 时间轴列表 */
@@ -169,12 +170,29 @@ body {
     display: flex;
     flex-direction: column;
     position: relative;
-    transition: width var(--sidebar-animation-duration) ease;
     flex-shrink: 0;
+    overflow: hidden;
+    transition: width var(--sidebar-animation-duration) ease;
 }
 
 .sidebar.collapsed {
     width: 0;
+    border-right: none;
+}
+
+.sidebar-inner {
+    width: var(--sidebar-width);
+    flex-shrink: 0;
+    transform: translateX(0);
+    transition: transform var(--sidebar-animation-duration) ease;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.sidebar.collapsed .sidebar-inner {
+    transform: translateX(-100%);
 }
 
 .sidebar-toggle {
@@ -215,16 +233,7 @@ body {
     display: inline-block;
 }
 
-.sidebar-header,
-.timeline-list {
-    transition: opacity 0.2s ease;
-}
 
-.sidebar.collapsed .sidebar-header,
-.sidebar.collapsed .timeline-list {
-    opacity: 0;
-    pointer-events: none;
-}
 
 .sidebar-header {
     padding: 20px;

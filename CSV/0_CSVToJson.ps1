@@ -39,7 +39,7 @@ try {
     # 构建对象数组（月与日可能为负数，重要性默认为0）
     $JsonArray = foreach ($Row in $Data) {
         [PSCustomObject]@{
-            year       = if ($Row.Year -match '^\d+$') { [int]$Row.Year } else { $Row.Year }
+            year       = if ($Row.Year -match '^-?\d+$') { [int]$Row.Year } else { $Row.Year }
             month      = if ($Row.Month -match '^-?\d+$') { [int]$Row.Month } else { $Row.Month }
             day       = if ($Row.Day -match '^-?\d+$') { [int]$Row.Day } else { $Row.Day }
             title      = $Row.Title

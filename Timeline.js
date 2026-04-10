@@ -8,7 +8,8 @@ const MIN_LABEL_SPACING = {
         return isMobile ? this.mobile : this.desktop;
     }
 };
-const PADDING_AMOUNT = 0.1; // 年份范围的留白
+const PADDING_AMOUNT = 0.2; // 年份范围的留白
+const VIEWPORT_MARGIN = 0.07; // 视口边缘的额外年份范围（占留白后范围的百分比）
 const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
 const TIMELINE_WIDTH = 4; // 时间轴线条宽度
 const MIN_YEAR_SPAN = 3; // 最小视图跨度（年），避免过度放大
@@ -71,9 +72,10 @@ class MyEvent {
     * @param {String} era 时代 可为空
      */
     constructor(year, month, day, title, label = '', importance = 0, desc, detail, era = '') {
-        this.year = year;
-        this.month = month;
-        this.day = day;
+        // 确保年份是数字（JSON 可能返回字符串）
+        this.year = Number(year);
+        this.month = month ? Number(month) : null;
+        this.day = day ? Number(day) : null;
         this.title = title;
         this.label = label;
         this.importance = importance;
@@ -836,8 +838,8 @@ class TimelineApp {
 
         // 绘制轨道标签
         ctx.fillStyle = color;
-        ctx.font = 'bold 14px sans-serif';
-        ctx.fillText(timeline.title, 20, y + 25);
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(timeline.title, 20, y + 40);
 
         // 绘制时间线
         ctx.strokeStyle = color;
@@ -1756,8 +1758,9 @@ class TimelineApp {
 
         // 计算并设置视图范围
         this.updateMinMaxFromActiveTimelines();
-        this.viewStart = this.minYear;
-        this.viewEnd = this.maxYear;
+        const margin = (this.maxYear - this.minYear) * VIEWPORT_MARGIN;
+        this.viewStart = this.minYear + margin;
+        this.viewEnd = this.maxYear - margin;
 
         this.updateRangeSlider();
         this.render();
