@@ -591,8 +591,15 @@ body {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    height: 4px;
+    height: 7px;
     background: var(--accent-blue);
+    cursor: grab;
+    transition: background-color 0.15s ease;
+}
+
+.range-selection.panning {
+    background: var(--accent-purple);
+    cursor: grabbing;
 }
 
 .range-handle {

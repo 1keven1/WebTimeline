@@ -662,6 +662,9 @@ class TimelineApp {
         const selection = document.getElementById('rangeSelection');
 
         let isDragging = null;
+        let panStartLeft = 0;
+        let panStartRight = 0;
+        let panStartX = 0;
 
         const updateRange = () => {
             const left = parseFloat(leftHandle.style.left);
@@ -709,6 +712,24 @@ class TimelineApp {
                 if (percent > left + minPercentSpan) {
                     rightHandle.style.left = percent + '%';
                 }
+            } else if (isDragging === 'pan') {
+                // 平移模式：整体移动选择区域
+                const deltaPercent = percent - panStartX;
+                let newLeft = panStartLeft + deltaPercent;
+                let newRight = panStartRight + deltaPercent;
+
+                // 边界检查
+                if (newLeft < 0) {
+                    newLeft = 0;
+                    newRight = panStartRight - panStartLeft;
+                }
+                if (newRight > 100) {
+                    newRight = 100;
+                    newLeft = 100 - (panStartRight - panStartLeft);
+                }
+
+                leftHandle.style.left = newLeft + '%';
+                rightHandle.style.left = newRight + '%';
             }
 
             updateRange();
@@ -727,10 +748,17 @@ class TimelineApp {
             document.removeEventListener('touchmove', handleTouchMove);
             document.removeEventListener('touchend', stopDrag);
             document.removeEventListener('touchcancel', stopDrag);
+            selection.classList.remove('panning');
         };
 
-        const startDrag = (type) => {
+        const startDrag = (type, startX = 0) => {
             isDragging = type;
+            panStartX = startX;
+            if (type === 'pan') {
+                panStartLeft = parseFloat(leftHandle.style.left);
+                panStartRight = parseFloat(rightHandle.style.left);
+                selection.classList.add('panning');
+            }
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', stopDrag);
             document.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -743,6 +771,19 @@ class TimelineApp {
 
         rightHandle.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag('right'); });
         rightHandle.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag('right'); }, { passive: false });
+
+        // 中间区域拖动平移
+        const startPan = (e) => {
+            e.preventDefault();
+            const rect = slider.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0]?.clientX);
+            if (clientX === undefined) return;
+            const startX = ((clientX - rect.left) / rect.width) * 100;
+            startDrag('pan', startX);
+        };
+
+        selection.addEventListener('mousedown', startPan);
+        selection.addEventListener('touchstart', (e) => { startPan(e); }, { passive: false });
     }
 
     /**
@@ -1741,7 +1782,8 @@ class TimelineApp {
         document.getElementById('detailTimeline').textContent = timeline.title;
         document.getElementById('detailTimeline').style.color = timeline.color;
         document.getElementById('detailEra').textContent = event.era || '-';
-        document.getElementById('detailContent').scrollTop = 0; // 滚动回顶部
+        // 滚动详情面板内容区域回顶部
+        document.querySelector('.detail-content').scrollTop = 0;
 
         // 打开面板
         document.getElementById('detailPanel').classList.add('open');
