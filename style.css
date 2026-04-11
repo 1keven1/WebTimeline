@@ -1,36 +1,60 @@
+/* =========================================================
+ *  主题颜色配置
+ * ========================================================= */
 :root {
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-tertiary: #334155;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --accent-blue: #3b82f6;
-    --accent-purple: #8b5cf6;
-    --accent-emerald: #10b981;
-    --accent-rose: #f43f5e;
-    --accent-amber: #f59e0b;
-    --border-color: #475569;
+    /* ---------- 背景色 ---------- */
+    --bg-canvas: hsl(266 40% 11% / 1);         /* 主背景：深邃紫黑色 */
+    --bg-ui: hsl(265 35% 17% / 1);              /* UI背景：深紫色 */
+    --bg-tertiary: hsl(265 25% 24% / 1);        /* 交互背景：中紫色 */
+    
+    /* ---------- 文字色 ---------- */
+    --text-primary: #f5f0ff;                    /* 主文本：淡紫色 */
+    --text-secondary: hsl(257, 28%, 80%);                  /* 次要文本：柔和紫灰色 */
+    
+    /* ---------- 强调色（紫色主题） ---------- */
+    --highlight-color: #a855f7;                 /* 主强调色：亮紫色 */
+    --hightlight-hover: hsl(270, 95%, 85%);     /* 悬停高亮：浅紫色 */
+    --accent-fuchsia: #d946ef;                  /* 特殊标记：洋红色 */
+    
+    /* ---------- 功能色 ---------- */
+    --accent-emerald: #10b981;                  /* 成功状态：翠绿色 */
+    --danger-color: #f43f5e;                    /* 危险操作：红色 */
+    --warn-color: #fbbf24;                      /* 警告提示：暖黄色 */
+    
+    /* ---------- 边框与阴影 ---------- */
+    --border-color: hsl(261 25% 35% / 1);       /* 边框色：紫灰色 */
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
-    --sidebar-animation-duration: 300ms;
     
-    /* 布局变量 */
+    /* ---------- 布局变量 ---------- */
+    --sidebar-animation-duration: 300ms;
     --header-height: 60px;
     --sidebar-width: 280px;
 }
 
-/* 日间模式配色 */
+/* =========================================================
+ *  日间模式配色
+ * ========================================================= */
 [data-theme="light"] {
-    --bg-primary: #f1f5f9;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #e2e8f0;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --accent-blue: #2563eb;
-    --accent-purple: #7c3aed;
+    /* 背景色 */
+    --bg-canvas: #faf7ff;                       /* 淡紫白色 */
+    --bg-ui: #ffffff;
+    --bg-tertiary: #f0e6ff;                     /* 浅紫色 */
+    
+    /* 文字色 */
+    --text-primary: #1a0f2e;                    /* 深紫色 */
+    --text-secondary: #6b5b7d;                  /* 紫灰色 */
+    
+    /* 强调色 */
+    --highlight-color: #7c3aed;
+    --hightlight-hover: #9333ea;
+    
+    /* 功能色 */
     --accent-emerald: #059669;
-    --accent-rose: #e11d48;
-    --accent-amber: #d97706;
+    --danger-color: #e11d48;
+    --warn-color: #d97706;
+    
+    /* 边框与阴影 */
     --border-color: #cbd5e1;
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
@@ -44,7 +68,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    background: var(--bg-primary);
+    background: var(--bg-canvas);
     color: var(--text-primary);
     overflow: hidden;
     height: var(--vh, 100vh);
@@ -55,7 +79,7 @@ body {
 /* 顶部控制栏 */
 .header {
     height: var(--header-height);
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -67,11 +91,12 @@ body {
 .logo {
     font-size: 20px;
     font-weight: 700;
-    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    background: linear-gradient(135deg, hsl(281, 80%, 56%), hsl(191, 60%, 56%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     margin-right: 20px;
+    filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.3));
 }
 
 .control-group {
@@ -104,8 +129,7 @@ body {
 }
 
 .btn.active {
-    background: var(--accent-blue);
-    border-color: var(--accent-blue);
+    background: var(--highlight-color);
     color: white;
 }
 
@@ -131,8 +155,8 @@ body {
 /* 电脑端 hover 效果 */
 @media (hover: hover) {
     .category-tag:hover {
-        background: var(--accent-blue);
-        border-color: var(--accent-blue);
+        background: var(--highlight-color);
+        border-color: var(--highlight-color);
     }
 }
 
@@ -165,7 +189,7 @@ body {
 /* 侧边栏 - 时间轴列表 */
 .sidebar {
     width: var(--sidebar-width);
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
@@ -202,7 +226,7 @@ body {
     transform: translateY(-50%);
     width: 24px;
     height: 60px;
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border: 1px solid var(--border-color);
     border-left: none;
     border-radius: 0 6px 6px 0;
@@ -274,8 +298,9 @@ body {
 }
 
 .timeline-item.active {
-    border-color: var(--accent-blue);
-    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--highlight-color);
+    background: rgba(168, 85, 247, 0.15);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
 }
 
 .timeline-color-indicator {
@@ -397,7 +422,7 @@ body {
     /* 与 event-label 完全相同的 top 值 */
     transform: translateX(-50%);
     width: 170px;
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border: 2px solid var(--timeline-color);
     border-radius: 8px;
     padding: 7px;
@@ -441,18 +466,16 @@ body {
 }
 
 .event-popup .era {
-    color: #888;
+    color: var(--text-secondary);
     font-size: 14px;
     margin-top: 7px;
 }
 
-/* 选中状态的大卡片高亮效果 */
+/* 选中状态的大卡片高亮效果 */ 
 .event-card.active .event-popup {
-    /* border-color: #ffffff;  */
     background-color: #dddddd;
-    /* border-width: 3px; */
-    pointer-events: auto; /* 允许交互 */
-    touch-action: none; /* 禁用浏览器默认触摸行为，防止左右滑动导航 */
+    pointer-events: auto;
+    touch-action: none;
 }
 /* 选中状态下的大卡片内容颜色微调 */
 .event-card.active .event-popup .title {
@@ -463,7 +486,7 @@ body {
 /* 工具栏 */
 .toolbar {
     height: 50px;
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -487,7 +510,7 @@ body {
     padding: 4px 8px;
     font-size: 14px;
     text-align: center;
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border: 1px solid var(--border-color);
     border-radius: 4px;
     color: var(--text-primary);
@@ -505,7 +528,7 @@ body {
 
 .view-range-inputs .range-input:focus {
     outline: none;
-    border-color: var(--accent-blue);
+    border-color: var(--highlight-color);
 }
 
 .view-range-inputs .range-separator {
@@ -524,16 +547,16 @@ body {
     overflow: visible;
 }
 
-/* 画布容器 - Canvas绘制区域 */
+/* 画布容器 - Canvas绘制区域 - 紫色主题网格 */
 .canvas-container {
     position: absolute;
     inset: 0;
     overflow: hidden;
     background:
-        linear-gradient(var(--bg-primary) 2px, transparent 2px),
-        linear-gradient(90deg, var(--bg-primary) 2px, transparent 2px),
-        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        linear-gradient(rgba(168, 85, 247, 0.06) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(168, 85, 247, 0.06) 2px, transparent 2px),
+        linear-gradient(rgba(168, 85, 247, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(168, 85, 247, 0.06) 1px, transparent 1px);
     background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
     cursor: grab;
 }
@@ -561,7 +584,7 @@ body {
 /* 底部范围选择器 */
 .range-selector {
     height: 70px;
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border-top: 1px solid var(--border-color);
     padding: 15px 20px;
     display: flex;
@@ -592,13 +615,20 @@ body {
     top: 50%;
     transform: translateY(-50%);
     height: 7px;
-    background: var(--accent-blue);
+    background: var(--highlight-color);
     cursor: grab;
     transition: background-color 0.15s ease;
 }
 
+/* 桌面端：hover时变紫 */
+@media (hover: hover) {
+    .range-selection:hover {
+        background: var(--hightlight-hover);
+    }
+}
+
 .range-selection.panning {
-    background: var(--accent-purple);
+    background: var(--hightlight-hover);
     cursor: grabbing;
 }
 
@@ -631,7 +661,7 @@ body {
 
 .range-handle:hover,
 .range-handle:active {
-    background: var(--accent-blue);
+    background: var(--highlight-color);
 }
 
 .handle-label {
@@ -665,7 +695,7 @@ body {
     transform: translateX(120%);
     width: 420px;
     height: calc(var(--vh, 100vh) - 220px);
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border: 1px solid var(--border-color);
     border-radius: 16px;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
@@ -714,7 +744,7 @@ body {
 .detail-year {
     font-size: 24px;
     font-weight: 700;
-    color: var(--accent-blue);
+    color: var(--highlight-color);
     margin-bottom: 8px;
 }
 
@@ -820,7 +850,7 @@ body {
 }
 
 .modal {
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border-radius: 12px;
     width: 600px;
     max-width: 90vw;
@@ -904,11 +934,11 @@ body {
 .form-textarea:focus,
 .form-select:focus {
     outline: none;
-    border-color: var(--accent-blue);
+    border-color: var(--highlight-color);
 }
 
 .json-preview {
-    background: var(--bg-primary);
+    background: var(--bg-canvas);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 12px;
@@ -930,17 +960,18 @@ body {
 }
 
 .btn-primary {
-    background: var(--accent-blue);
-    border-color: var(--accent-blue);
+    background: var(--highlight-color);
+    border-color: var(--highlight-color);
 }
 
 .btn-primary:hover {
-    background: #2563eb;
+    background: var(--hightlight-hover);
+    box-shadow: 0 0 15px rgba(192, 132, 252, 0.4);
 }
 
 .btn-danger {
-    background: var(--accent-rose);
-    border-color: var(--accent-rose);
+    background: var(--danger-color);
+    border-color: var(--danger-color);
 }
 
 .btn-danger:hover {
@@ -954,7 +985,7 @@ body {
     left: 50%;
     transform: translateX(-50%) translateY(100px);
     z-index: 99999;
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     color: var(--text-primary);
     padding: 12px 24px;
     border-radius: 8px;
@@ -997,7 +1028,7 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--bg-primary);
+    background: var(--bg-canvas);
     z-index: 10000;
     align-items: flex-start;
     justify-content: center;
@@ -1044,7 +1075,7 @@ body {
     align-items: center;
     gap: 8px;
     padding: 14px 28px;
-    background: var(--accent-blue);
+    background: var(--highlight-color);
     color: white;
     border: none;
     border-radius: 8px;
@@ -1053,11 +1084,6 @@ body {
     cursor: pointer;
     transition: all 0.2s;
     margin-bottom: 16px;
-}
-
-.orientation-btn:hover {
-    background: #2563eb;
-    transform: translateY(-2px);
 }
 
 .orientation-btn:active {
@@ -1077,7 +1103,7 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--bg-primary);
+    background: var(--bg-canvas);
     z-index: 10001;
     align-items: center;
     justify-content: center;
@@ -1114,9 +1140,9 @@ body {
 
 .wechat-hint {
     font-size: 14px;
-    color: var(--accent-amber);
+    color: var(--warn-color);
     padding: 12px 20px;
-    border: 1px dashed var(--accent-amber);
+    border: 1px dashed var(--warn-color);
     border-radius: 8px;
     background: rgba(245, 158, 11, 0.1);
 }
@@ -1124,7 +1150,7 @@ body {
 /* 右键菜单 */
 .context-menu {
     position: fixed;
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 4px;
@@ -1156,7 +1182,7 @@ body {
 }
 
 .context-menu-delete {
-    color: var(--accent-rose);
+    color: var(--danger-color);
 }
 
 .context-menu-delete:hover {
@@ -1174,7 +1200,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--bg-secondary);
+    background: var(--bg-ui);
 }
 
 ::-webkit-scrollbar-thumb {
