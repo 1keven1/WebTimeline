@@ -1,21 +1,43 @@
 'use strict'
 
-// ============ Canvas 颜色配置 - 在此修改配色 ============
+// ============ Canvas 颜色配置 - 深色/浅色双主题 ============
 const COLORS = {
-    // 时间轴刻度线
-    yearScale: {
-        bold: 'hsl(262, 20%, 39%)',           // 粗刻度线（重要年份）
-        normal: 'hsl(261, 20%, 27%)',         // 普通刻度线
-        textMajor: 'hsl(257, 20%, 70%)',      // 重要年份文字
-        textMinor: 'hsl(257, 20%, 50%)',      // 普通年份文字
+    // 深色模式（紫色主题）
+    dark: {
+        yearScale: {
+            bold: 'hsl(261, 25%, 35%)',       // 粗刻度线：紫灰色
+            normal: 'hsl(261, 25%, 25%)',     // 普通刻度线：深紫灰
+            textMajor: 'hsl(257, 28%, 80%)',  // 重要年份文字：淡紫
+            textMinor: 'hsl(257, 20%, 55%)',  // 普通年份文字：中紫灰
+        },
+        currentYear: 'hsl(48, 100%, 50%)',    // 当前年份高亮
+        event: {
+            centerDot: 'hsl(266, 100%, 97%)', // 事件圆点中心：极淡紫白
+        }
     },
-    // 当前时间刻度
-    currentYear: 'hsl(48, 100%, 50%)',        // 当前年份高亮（浅紫色）
-    // 事件标记
-    event: {
-        centerDot: 'hsl(257, 29%, 90%)',      // 事件圆点中心
+    // 浅色模式（白色与浅紫主题）
+    light: {
+        yearScale: {
+            bold: 'hsl(261, 30%, 75%)',       // 粗刻度线：浅紫灰
+            normal: 'hsl(261, 25%, 85%)',     // 普通刻度线：淡紫灰
+            textMajor: 'hsl(257, 25%, 45%)',  // 重要年份文字：中紫
+            textMinor: 'hsl(257, 20%, 65%)',  // 普通年份文字：浅紫灰
+        },
+        currentYear: 'hsl(48, 100%, 45%)',    // 当前年份高亮
+        event: {
+            centerDot: 'hsl(0, 0%, 100%)',    // 事件圆点中心：纯白
+        }
     }
 };
+
+/**
+ * 获取当前主题颜色
+ * @returns {Object} 当前主题的颜色配置
+ */
+function getThemeColors() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    return isLight ? COLORS.light : COLORS.dark;
+}
 
 // 刻度样式配置
 const YEARSCALE_BOLD_WIDTH = 1.5;
@@ -923,7 +945,7 @@ class TimelineApp {
             ctx.fill();
             ctx.beginPath();
             ctx.arc(x, centerY, 3, 0, Math.PI * 2);
-            ctx.fillStyle = COLORS.event.centerDot;
+            ctx.fillStyle = getThemeColors().event.centerDot;
             ctx.fill();
         });
     }
@@ -958,7 +980,7 @@ class TimelineApp {
             const isMajor = Math.round(t) % majorStep === 0;
 
             // 刻度线
-            ctx.strokeStyle = isMajor ? COLORS.yearScale.bold : COLORS.yearScale.normal;
+            ctx.strokeStyle = isMajor ? getThemeColors().yearScale.bold : getThemeColors().yearScale.normal;
             ctx.lineWidth = isMajor ? YEARSCALE_BOLD_WIDTH : YEARSCALE_WIDTH;
             ctx.beginPath();
             ctx.moveTo(x, 0);
@@ -966,7 +988,7 @@ class TimelineApp {
             ctx.stroke();
 
             // 年份标签
-            ctx.fillStyle = isMajor ? COLORS.yearScale.textMajor : COLORS.yearScale.textMinor;
+            ctx.fillStyle = isMajor ? getThemeColors().yearScale.textMajor : getThemeColors().yearScale.textMinor;
             ctx.font = isMajor ? YEARSCALE_BOLD_FONT : YEARSCALE_FONT;
             ctx.textAlign = 'center';
             // 小数部分转换为月份显示
@@ -991,7 +1013,7 @@ class TimelineApp {
                 const x = ((currentDecimalYear - this.viewStart) / timeSpan) * width;
 
                 // 刻度线
-                ctx.strokeStyle = COLORS.currentYear;
+                ctx.strokeStyle = getThemeColors().currentYear;
                 ctx.lineWidth = CURRENT_YEAR_WIDTH;
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
@@ -999,7 +1021,7 @@ class TimelineApp {
                 ctx.stroke();
 
                 // 当前年份标签
-                ctx.fillStyle = COLORS.currentYear;
+                ctx.fillStyle = getThemeColors().currentYear;
                 ctx.font = CURRENT_YEAR_FONT;
                 ctx.textAlign = 'center';
                 ctx.fillText(this.formatEventDate(currentEvent), x, 35);

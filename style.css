@@ -33,31 +33,32 @@
 }
 
 /* =========================================================
- *  日间模式配色
+ *  日间模式配色 - 白色与浅紫色
  * ========================================================= */
 [data-theme="light"] {
-    /* 背景色 */
-    --bg-canvas: #faf7ff;                       /* 淡紫白色 */
-    --bg-ui: #ffffff;
-    --bg-tertiary: #f0e6ff;                     /* 浅紫色 */
+    /* ---------- 背景色 ---------- */
+    --bg-canvas: #faf8ff;                       /* 主背景：纯白 */
+    --bg-ui: #f3efff;                           /* UI背景：极淡紫白 */
+    --bg-tertiary: #f3efff;                     /* 交互背景：浅紫 */
     
-    /* 文字色 */
-    --text-primary: #1a0f2e;                    /* 深紫色 */
-    --text-secondary: #6b5b7d;                  /* 紫灰色 */
+    /* ---------- 文字色 ---------- */
+    --text-primary: #1a0f2e;                    /* 主文本：深紫黑 */
+    --text-secondary: #7c6b8f;                  /* 次要文本：柔和紫灰 */
     
-    /* 强调色 */
-    --highlight-color: #7c3aed;
-    --hightlight-hover: #9333ea;
+    /* ---------- 强调色（亮紫主题） ---------- */
+    --highlight-color: #9333ea;                 /* 主强调色：亮紫色 */
+    --hightlight-hover: #a855f7;                /* 悬停高亮：浅亮紫 */
+    --accent-fuchsia: #c026d3;                  /* 特殊标记：玫红 */
     
-    /* 功能色 */
+    /* ---------- 功能色 ---------- */
     --accent-emerald: #059669;
     --danger-color: #e11d48;
     --warn-color: #d97706;
     
-    /* 边框与阴影 */
-    --border-color: #cbd5e1;
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+    /* ---------- 边框与阴影 ---------- */
+    --border-color: hsl(259 35% 80% / 1); 
+    --shadow-lg: 0 10px 15px -3px rgba(88, 28, 135, 0.08);
+    --shadow-xl: 0 20px 25px -5px rgba(88, 28, 135, 0.12);
 }
 
 * {
@@ -130,6 +131,7 @@ body {
 
 .btn.active {
     background: var(--highlight-color);
+    border-color: var(--highlight-color);
     color: white;
 }
 
@@ -559,6 +561,16 @@ body {
         linear-gradient(90deg, rgba(168, 85, 247, 0.06) 1px, transparent 1px);
     background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
     cursor: grab;
+}
+
+/* 日间模式网格 - 更淡的紫色 */
+[data-theme="light"] .canvas-container {
+    background:
+        linear-gradient(rgba(147, 51, 234, 0.04) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(147, 51, 234, 0.04) 2px, transparent 2px),
+        linear-gradient(rgba(147, 51, 234, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(147, 51, 234, 0.04) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
 }
 
 .canvas-container:active,
@@ -1335,7 +1347,7 @@ body {
     }
     
     .event-popup {
-        width: 150px;
+        width: 130px;
         padding: 3px;
     }
     
