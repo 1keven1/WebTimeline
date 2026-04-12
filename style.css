@@ -3,26 +3,28 @@
  * ========================================================= */
 :root {
     /* ---------- 背景色 ---------- */
-    --bg-canvas: hsl(266 40% 11% / 1);         /* 主背景：深邃紫黑色 */
-    --bg-ui: hsl(265 35% 17% / 1);              /* UI背景：深紫色 */
-    --bg-tertiary: hsl(265 25% 24% / 1);        /* 交互背景：中紫色 */
+    --bg-canvas: hsl(266 40% 11% / 1);        
+    --bg-ui: hsl(265 35% 17% / 1);              
+    --bg-tertiary: hsl(265 25% 24% / 1);        
+    --bg-header:hsl(265 35% 17% / 1);
     
     /* ---------- 文字色 ---------- */
-    --text-primary: #f5f0ff;                    /* 主文本：淡紫色 */
-    --text-secondary: hsl(257, 28%, 80%);                  /* 次要文本：柔和紫灰色 */
+    --logo-color: linear-gradient(135deg, hsl(281, 80%, 56%), hsl(191, 60%, 56%));
+    --text-primary: #f5f0ff;                  
+    --text-secondary: hsl(257, 28%, 80%);               
     
     /* ---------- 强调色（紫色主题） ---------- */
-    --highlight-color: #a855f7;                 /* 主强调色：亮紫色 */
-    --hightlight-hover: hsl(270, 95%, 85%);     /* 悬停高亮：浅紫色 */
-    --accent-fuchsia: #d946ef;                  /* 特殊标记：洋红色 */
+    --highlight-color: #a855f7;           
+    --hightlight-hover: hsl(270, 95%, 85%);  
+    --accent-fuchsia: #d946ef;            
     
     /* ---------- 功能色 ---------- */
-    --accent-emerald: #10b981;                  /* 成功状态：翠绿色 */
-    --danger-color: #f43f5e;                    /* 危险操作：红色 */
-    --warn-color: #fbbf24;                      /* 警告提示：暖黄色 */
+    --accent-emerald: #10b981;              
+    --danger-color: #f43f5e;             
+    --warn-color: #fbbf24;                 
     
     /* ---------- 边框与阴影 ---------- */
-    --border-color: hsl(261 25% 35% / 1);       /* 边框色：紫灰色 */
+    --border-color: hsl(261 25% 35% / 1);     
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
     
@@ -37,18 +39,20 @@
  * ========================================================= */
 [data-theme="light"] {
     /* ---------- 背景色 ---------- */
-    --bg-canvas: #faf8ff;                       /* 主背景：纯白 */
-    --bg-ui: #f3efff;                           /* UI背景：极淡紫白 */
-    --bg-tertiary: #f3efff;                     /* 交互背景：浅紫 */
+    --bg-canvas: linear-gradient(to top, hsl(280 80% 93% / 1) 0%, hsl(250 80% 92% / 1) 100%);                       
+    --bg-ui: hsl(260 80% 90% / 1);
+    --bg-tertiary: hsl(265 80% 85% / 1);
+    --bg-header: hsl(260 80% 90% / 1);
     
     /* ---------- 文字色 ---------- */
-    --text-primary: #1a0f2e;                    /* 主文本：深紫黑 */
-    --text-secondary: #7c6b8f;                  /* 次要文本：柔和紫灰 */
+    --logo-color: linear-gradient(135deg, hsl(281, 80%, 45%), hsl(191, 60%, 45%));
+    --text-primary: #2e1065;
+    --text-secondary: #5b21b6; 
     
-    /* ---------- 强调色（亮紫主题） ---------- */
-    --highlight-color: #9333ea;                 /* 主强调色：亮紫色 */
-    --hightlight-hover: #a855f7;                /* 悬停高亮：浅亮紫 */
-    --accent-fuchsia: #c026d3;                  /* 特殊标记：玫红 */
+    /* ---------- 强调色 ---------- */
+    --highlight-color: hsl(270 81% 60% / 1);
+    --hightlight-hover: hsl(280 81% 70% / 1);
+    --accent-fuchsia: #c026d3;              
     
     /* ---------- 功能色 ---------- */
     --accent-emerald: #059669;
@@ -56,7 +60,7 @@
     --warn-color: #d97706;
     
     /* ---------- 边框与阴影 ---------- */
-    --border-color: hsl(259 35% 80% / 1); 
+    --border-color: hsl(259 35% 70% / 1); 
     --shadow-lg: 0 10px 15px -3px rgba(88, 28, 135, 0.08);
     --shadow-xl: 0 20px 25px -5px rgba(88, 28, 135, 0.12);
 }
@@ -80,7 +84,7 @@ body {
 /* 顶部控制栏 */
 .header {
     height: var(--header-height);
-    background: var(--bg-ui);
+    background: var(--bg-header);
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -92,7 +96,7 @@ body {
 .logo {
     font-size: 20px;
     font-weight: 700;
-    background: linear-gradient(135deg, hsl(281, 80%, 56%), hsl(191, 60%, 56%));
+    background: var(--logo-color);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -243,7 +247,7 @@ body {
 }
 
 .sidebar-toggle:hover {
-    background: var(--bg-tertiary);
+    background: var(--border-color);
     color: var(--text-primary);
 }
 
