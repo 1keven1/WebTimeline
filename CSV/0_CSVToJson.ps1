@@ -43,7 +43,7 @@ try {
             month      = if ($Row.Month -match '^-?\d+$') { [int]$Row.Month } else { $Row.Month }
             day       = if ($Row.Day -match '^-?\d+$') { [int]$Row.Day } else { $Row.Day }
             title      = $Row.Title
-            label      = $Row.Lable
+            label      = $Row.Label
             importance = if ($Row.Importance -match '^-?\d+$') { [int]$Row.Importance } else { 0 }
             desc       = $Row.Desc
             detail     = $Row.Detail

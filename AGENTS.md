@@ -213,7 +213,7 @@ const defaultTimelineIds = ['three-body', 'chinese-history'];
 ```
 
 ### CSV 格式（用于数据导入）
-CSV 文件应包含以下列：`Year`, `Month`, `Day`, `Title`, `Lable`, `Importance`, `Desc`, `Detail`, `Era`
+CSV 文件应包含以下列：`Year`, `Month`, `Day`, `Title`, `Label`, `Importance`, `Desc`, `Detail`, `Era`
 
 **注意**：月份和日期可以为负值，用于时间偏移（位置调整）但不显示。
 

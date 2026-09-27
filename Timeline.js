@@ -1461,15 +1461,16 @@ class TimelineApp {
     }
 
     /**
-     * 将 year/month/day 转换为小数年份,如：1979年10月21日 → 1979.805
-     * 支持负数月份/日期（如 -6）：用于偏移计算但不显示
+     * 将 year/month/day 转换为小数年份（每月占 1/12 年）
+     * 月、日的正负号只控制显示；绝对值相同的日期具有相同位置
      * @param {MyEvent} event 事件对象，包含 year, month, day
      * @return {Number} 转换后的小数年份
      */
     getDecimalYear(event) {
-        if (!event.month || event.month === '') return event.year;
+        const year = Number(event.year);
+        if (!event.month || event.month === '') return year;
 
-        // 处理负数月份（用于偏移但不显示）
+        // 定位只使用绝对值，不因显示精度改变位置
         const month = Math.abs(event.month);
 
         // 月份转换为年的小数：1月=0, 12月≈0.92
@@ -1483,18 +1484,18 @@ class TimelineApp {
             dayFraction = (day - 1) / daysInMonth / 12;
         }
 
-        return event.year + monthFraction + dayFraction;
+        return year + monthFraction + dayFraction;
     }
 
     /**
      * 格式化显示日期，如 "1979.10.21" 或 "1979.10" 或 "1979"
-     * 支持负数月份/日期（如 -6）：只进行偏移计算但不显示
+     * 负月份隐藏月和日；负日期只隐藏日，均不影响定位
      * 年份为负时显示为 "前XX年" 格式
      * @param {MyEvent} event 事件对象，包含 year, month, day
      * @returns {String} 格式化后的日期字符串，如 "1979.10.21" 或 "前200年"
      */
-    formatEventDate(event) {
-        const yearStr = event.year < 0 ? `前${-event.year}` : event.year.toString();
+    formatEventDate(event, bcePrefix = '前') {
+        const yearStr = event.year < 0 ? `${bcePrefix}${-event.year}` : event.year.toString();
         // 无月份或月份为负数（用于偏移但不显示）时，只显示年份
         if (!event.month || event.month === '' || event.month < 0) return yearStr;
         // 有月份但无日期或日期为负数时，显示年.月
@@ -1510,19 +1511,9 @@ class TimelineApp {
      * @returns {String} 格式化后的日期字符串
      */
     getDetailedDateDesc(event) {
-        const yearStr = event.year < 0 ? `公元前${-event.year}` : event.year.toString();
-        // 无月份或月份为负数时，只显示年份
-        if (!event.month || event.month === '' || event.month < 0) {
-            return event.era ? `${yearStr} (${event.era})` : yearStr;
-        }
-        // 有月份时，显示年.月（使用阿拉伯数字年份）
-        const dateStr = `${event.year < 0 ? yearStr : yearStr}.${event.month.toString().padStart(2, '0')}`;
-        if (!event.day || event.day === '' || event.day < 0) {
-            return event.era ? `${dateStr} (${event.era})` : dateStr;
-        }
-        // 有月份和日期时，显示年.月.日
-        const fullDateStr = `${dateStr}.${event.day.toString().padStart(2, '0')}`;
-        return event.era ? `${fullDateStr} (${event.era})` : fullDateStr;
+        // 与卡片共用显示规则，避免负号在两个位置产生不同效果
+        const dateStr = this.formatEventDate(event, '公元前');
+        return event.era ? `${dateStr} (${event.era})` : dateStr;
     }
 
     /**
