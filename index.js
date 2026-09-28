@@ -33,5 +33,10 @@ const TIMELINE_INDEX = [
 // 默认选中的时间轴 ID 列表（可以是单个字符串或数组）
 const defaultTimelineIds = ['three-body', 'chinese-history'];
 
-// 初始化应用
-const app = new TimelineApp(TIMELINE_INDEX, defaultTimelineIds);
+// 先创建实例，再显式启动；页面内联事件仍通过 app 访问应用。
+const app = new TimelineApp();
+
+app.init(TIMELINE_INDEX, defaultTimelineIds).catch(error => {
+    console.error('初始化时间轴失败:', error);
+    app.showToast('初始化失败，请检查数据和网络后刷新页面');
+});

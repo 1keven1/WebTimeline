@@ -61,90 +61,12 @@ const DRAG_THRESHOLD = 3; // 移动超过3px视为拖拽
 const TIMELINE_WIDTH = 4; // 时间轴线条宽度
 const MIN_YEAR_SPAN = 3; // 最小视图跨度（年），避免过度放大
 
-// ============ 工具函数 ============
-/**
- * 将值限制在指定范围内
- */
-const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
-
-/**
- * 防抖函数
- */
-const debounce = (fn, delay) => {
-    let timer = null;
-    return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn.apply(this, args), delay);
-    };
-};
-
-/**
- * HTML 转义函数，防止 XSS
- */
-const escapeHtml = (text) => {
-    const map = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
-    return text.replace(/[<>&"']/g, m => map[m]);
-};
-
-/**
- * 请求全屏（带浏览器前缀兼容）
- */
-const requestFullscreen = (elem) => {
-    const fn = elem.requestFullscreen || elem.webkitRequestFullscreen ||
-        elem.mozRequestFullScreen || elem.msRequestFullscreen;
-    return fn ? fn.call(elem) : Promise.reject('不支持全屏');
-};
-
-// ============ 类定义 ============
-/**
- * 时间轴中的事件对象结构体
- */
-class MyEvent {
-    /**
-    * @param {Int} year 事件年份
-    * @param {String} title 事件标题
-    * @param {String} label 事件标签（为空则使用标题）
-    * @param {Int} importance 重要度
-    * @param {String} desc 描述
-    * @param {String} detail 细节
-    * @param {String} era 时代 可为空
-     */
-    constructor(year, month, day, title, label = '', importance = 0, desc, detail, era = '') {
-        // 确保年份是数字（JSON 可能返回字符串）
-        this.year = Number(year);
-        this.month = month ? Number(month) : null;
-        this.day = day ? Number(day) : null;
-        this.title = title;
-        this.label = label;
-        this.importance = importance;
-        this.desc = desc;
-        this.detail = detail;
-        this.era = era;
-    }
-}
-
-/**
- * 时间轴对象结构体
- */
-class Timeline {
-    /**
-    * @param {String} id 
-    * @param {String} title 
-    * @param {MyEvent[]} events 
-    * @param {String} color 
-    * @param {String} category 
-     */
-    constructor(id, title, events, color, category) {
-        this.id = id;
-        this.title = title;
-        this.color = color;
-        this.category = category;
-        this.events = events;
-    }
-}
 
 class TimelineApp {
-    constructor(timelineIndex, defaultTimelineIds) {
+    /**
+     * 创建应用实例，创建后需调用 init() 启动应用
+     */
+    constructor() {
         /** @type {Timeline[]} */
         this.timelines = [];
         /** @type {Set<String>} */
@@ -153,7 +75,7 @@ class TimelineApp {
         this.maxYear = 10000;
         this.viewStart = 1453;
         this.viewEnd = 2020;
-        /** @type {timelineId: String, event: MyEvent} */
+        /** @type {{timelineId: String, event: MyEvent}|null} */
         this.selectedEvent = null;
         this.lastMouseX = 0;
         this.editingId = null;
@@ -190,17 +112,44 @@ class TimelineApp {
         // 初始化DOM对象池
         this._eventElements = new Map();
 
-        this.canvas = document.getElementById('timelineCanvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.container = document.getElementById('canvasContainer');
-
-        this.init(timelineIndex, defaultTimelineIds);
+        this.canvas = null;
+        this.ctx = null;
+        this.container = null;
+        /** @type {Promise<void>|null} 初始化任务，防止重复绑定事件和加载数据 */
+        this._initPromise = null;
     }
 
-    async init(timelineIndex, defaultTimelineIds) {
+    /**
+     * DOM 就绪后初始化页面、交互和数据
+     * 重复调用返回首次任务（含失败），忽略新参数；失败后刷新重试
+     * @param {Object[]} timelineIndex 时间轴索引
+     * @param {String|String[]} [defaultTimelineIds=[]] 默认显示的时间轴 ID
+     * @returns {Promise<void>} 初始化任务；失败时拒绝，移动端微信提示后提前结束
+     */
+    init(timelineIndex, defaultTimelineIds = []) {
+        if (!this._initPromise) {
+            this._initPromise = Promise.resolve().then(() => this._initialize(timelineIndex, defaultTimelineIds));
+        }
+        return this._initPromise;
+    }
+
+    /**
+     * 执行一次初始化，仅由 init() 调用
+     * @param {Object[]} timelineIndex 时间轴索引
+     * @param {String|String[]} defaultTimelineIds 默认显示的时间轴 ID
+     * @returns {Promise<void>} 初始化任务
+     */
+    async _initialize(timelineIndex, defaultTimelineIds) {
+        this.canvas = document.getElementById('timelineCanvas');
+        this.container = document.getElementById('canvasContainer');
+        if (!this.canvas || !this.container) throw new Error('未找到时间轴页面元素');
+        this.ctx = this.canvas.getContext('2d');
+        if (!this.ctx) throw new Error('浏览器不支持 Canvas 2D');
+
         // 检测设备类型：是否为移动端（触摸设备或屏幕宽度<=1024px）
         this.isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 1024;
 
+        // 如果是移动端
         if (this.isMobile) {
             // 如果是微信浏览器，直接显示提示覆盖层，不加载其他内容
             if (this.isWeChatBrowser()) {
@@ -212,6 +161,7 @@ class TimelineApp {
             // 初始检查屏幕方向（仅移动端）
             this.checkOrientation_Mobile();
         }
+
         this.setupEventListeners();
         this.setupRangeSlider();
         this.initTheme();
@@ -233,6 +183,8 @@ class TimelineApp {
         // 如果有激活的时间轴，重置视图并渲染
         if (this.activeTimelines.size > 0) {
             this.resetView();
+        } else {
+            this.render();
         }
 
         this.renderSidebar();
@@ -241,30 +193,12 @@ class TimelineApp {
     }
 
     /**
-     * 根据INDEX，从Json中加载事件数据
+     * 根据索引加载事件数据，失败向上传递，由启动入口统一处理
+     * @param {Object[]} timelineIndex 时间轴索引
+     * @returns {Promise<void>} 数据加载任务
      */
     async loadData(timelineIndex) {
-        try {
-            // 并行加载所有时间轴内容
-            const loadPromises = timelineIndex.map(async (meta) => {
-                const res = await fetch(meta.eventPath);
-                /** @type {MyEvent[]} */
-                const timelineEvents = await res.json();
-                return new Timeline(
-                    meta.id,
-                    meta.title,
-                    timelineEvents.map(e => new MyEvent(e.year, e.month, e.day, e.title, e.label, e.importance, e.desc, e.detail, e.era)),
-                    meta.color,
-                    meta.category
-                );
-            });
-
-            this.timelines = await Promise.all(loadPromises);
-        } catch (err) {
-            console.error('加载时间轴数据失败:', err);
-            this.showToast('数据加载失败');
-            this.timelines = [];
-        }
+        this.timelines = await TimelineUtils.data.loadTimelines(timelineIndex);
     }
 
     /**
@@ -364,7 +298,7 @@ class TimelineApp {
         // 初始化方向检测
         this.checkOrientation_Mobile();
         // 使用防抖优化resize事件
-        const debouncedCheck = debounce(() => {
+        const debouncedCheck = TimelineUtils.debounce(() => {
             this.checkOrientation_Mobile();
         }, 100);
         window.addEventListener('resize', () => {
@@ -456,7 +390,7 @@ class TimelineApp {
             if (exitFn) await exitFn.call(document);
         } else {
             try {
-                await requestFullscreen(document.documentElement);
+                await TimelineUtils.dom.requestFullscreen(document.documentElement);
                 this.showToast('已进入全屏模式');
             } catch (err) {
                 this.showToast('无法进入全屏模式');
@@ -470,7 +404,7 @@ class TimelineApp {
      */
     async enterFullscreenAndLock() {
         try {
-            await requestFullscreen(document.documentElement);
+            await TimelineUtils.dom.requestFullscreen(document.documentElement);
             if (screen.orientation?.lock) {
                 await screen.orientation.lock('landscape');
                 this.showToast('已锁定横屏模式');
@@ -732,7 +666,7 @@ class TimelineApp {
 
             const rect = slider.getBoundingClientRect();
             let percent = ((clientX - rect.left) / rect.width) * 100;
-            percent = clamp(percent, 0, 100);
+            percent = TimelineUtils.clamp(percent, 0, 100);
 
             // 计算最小百分比跨度（对应MIN_YEAR_SPAN年）
             const totalSpan = this.maxYear - this.minYear;
@@ -934,7 +868,7 @@ class TimelineApp {
         timeline.events.forEach(event => {
             if (event.year < this.viewStart || event.year > this.viewEnd) return;
             // 获取小数年份（考虑月份和日期）
-            const decimalYear = this.getDecimalYear(event);
+            const decimalYear = TimelineUtils.date.getDecimalYear(event);
             if (decimalYear < this.viewStart || decimalYear > this.viewEnd) return;
             const x = ((decimalYear - this.viewStart) / timeSpan) * width;
 
@@ -952,7 +886,7 @@ class TimelineApp {
 
     /**
      * 使用Canvas绘制年份刻度 + 当前时间刻度
-     * @param {CanvasRenderingContext2D} ctx 
+     * @param {CanvasRenderingContext2D} ctx
      * @param {Number} width 视口宽度
      * @param {Number} height 视口高度
      */
@@ -1008,7 +942,7 @@ class TimelineApp {
         // 绘制当前时间刻度
         if (this.showCurrentTime) {
             const currentEvent = new MyEvent(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
-            const currentDecimalYear = this.getDecimalYear(currentEvent);
+            const currentDecimalYear = TimelineUtils.date.getDecimalYear(currentEvent);
             if (currentDecimalYear >= this.viewStart && currentDecimalYear <= this.viewEnd) {
                 const x = ((currentDecimalYear - this.viewStart) / timeSpan) * width;
 
@@ -1024,8 +958,8 @@ class TimelineApp {
                 ctx.fillStyle = getThemeColors().currentYear;
                 ctx.font = CURRENT_YEAR_FONT;
                 ctx.textAlign = 'center';
-                ctx.fillText(this.formatEventDate(currentEvent), x, 35);
-                if (!this.isMobile) ctx.fillText(this.formatEventDate(currentEvent), x, height - 25);
+                ctx.fillText(TimelineUtils.date.formatEventDate(currentEvent), x, 35);
+                if (!this.isMobile) ctx.fillText(TimelineUtils.date.formatEventDate(currentEvent), x, height - 25);
             }
         }
 
@@ -1034,7 +968,7 @@ class TimelineApp {
 
     /**
      * 使用差异更新更新DOM元素（标签与大卡片）
-     * @param {Timeline[]} activeTimelinesData 
+     * @param {Timeline[]} activeTimelinesData
      * @param {Number} trackHeight 轨道Y轴位置
      * @param {Number} width Canvas的宽度
      */
@@ -1053,9 +987,9 @@ class TimelineApp {
             const visibleEvents = timeline.events
                 .map(event => ({
                     event,
-                    x: ((this.getDecimalYear(event) - this.viewStart) / timeSpan) * width,
+                    x: ((TimelineUtils.date.getDecimalYear(event) - this.viewStart) / timeSpan) * width,
                     importance: event.importance || 0,
-                    decimalYear: this.getDecimalYear(event),
+                    decimalYear: TimelineUtils.date.getDecimalYear(event),
                     key: `${timeline.id}-${event.year}-${event.title}`
                 }))
                 .filter(item => item.x >= -150 && item.x <= width + 150);
@@ -1122,7 +1056,7 @@ class TimelineApp {
                 el.innerHTML = `
                 <div class="event-label">${event.label || event.title}</div>
                 <div class="event-popup">
-                    <div class="year">${this.formatEventDate(event)}</div>
+                    <div class="year">${TimelineUtils.date.formatEventDate(event)}</div>
                     <div class="title">${event.desc || event.title}</div>
                     ${event.era ? `<div class="era">[${event.era}]</div>` : ''}
                 </div>
@@ -1461,62 +1395,6 @@ class TimelineApp {
     }
 
     /**
-     * 将 year/month/day 转换为小数年份（每月占 1/12 年）
-     * 月、日的正负号只控制显示；绝对值相同的日期具有相同位置
-     * @param {MyEvent} event 事件对象，包含 year, month, day
-     * @return {Number} 转换后的小数年份
-     */
-    getDecimalYear(event) {
-        const year = Number(event.year);
-        if (!event.month || event.month === '') return year;
-
-        // 定位只使用绝对值，不因显示精度改变位置
-        const month = Math.abs(event.month);
-
-        // 月份转换为年的小数：1月=0, 12月≈0.92
-        const monthFraction = (month - 1) / 12;
-
-        // 日期转换为月的小数，再转为年的小数
-        let dayFraction = 0;
-        if (event.day && event.day !== '') {
-            const day = Math.abs(event.day);
-            const daysInMonth = new Date(event.year, month, 0).getDate(); // 获取该月总天数
-            dayFraction = (day - 1) / daysInMonth / 12;
-        }
-
-        return year + monthFraction + dayFraction;
-    }
-
-    /**
-     * 格式化显示日期，如 "1979.10.21" 或 "1979.10" 或 "1979"
-     * 负月份隐藏月和日；负日期只隐藏日，均不影响定位
-     * 年份为负时显示为 "前XX年" 格式
-     * @param {MyEvent} event 事件对象，包含 year, month, day
-     * @returns {String} 格式化后的日期字符串，如 "1979.10.21" 或 "前200年"
-     */
-    formatEventDate(event, bcePrefix = '前') {
-        const yearStr = event.year < 0 ? `${bcePrefix}${-event.year}` : event.year.toString();
-        // 无月份或月份为负数（用于偏移但不显示）时，只显示年份
-        if (!event.month || event.month === '' || event.month < 0) return yearStr;
-        // 有月份但无日期或日期为负数时，显示年.月
-        if (!event.day || event.day === '' || event.day < 0) return `${yearStr}.${event.month.toString().padStart(2, '0')}`;
-        // 有月份和正数日期时，显示年.月.日
-        return `${yearStr}.${event.month.toString().padStart(2, '0')}.${event.day.toString().padStart(2, '0')}`;
-    }
-
-    /**
-     * 获取详细日期描述，如 "1979.10.21" 或 "公元前200年"
-     * 年份为负时显示为 "公元前XX年" 格式
-     * @param {MyEvent} event 事件对象，包含 year, month, day, era
-     * @returns {String} 格式化后的日期字符串
-     */
-    getDetailedDateDesc(event) {
-        // 与卡片共用显示规则，避免负号在两个位置产生不同效果
-        const dateStr = this.formatEventDate(event, '公元前');
-        return event.era ? `${dateStr} (${event.era})` : dateStr;
-    }
-
-    /**
      * 更新Min year与Max year
      */
     updateMinMaxFromActiveTimelines() {
@@ -1596,7 +1474,7 @@ class TimelineApp {
 
         // 限制缩放范围
         const maxSpan = this.maxYear - this.minYear;
-        newSpan = clamp(newSpan, MIN_YEAR_SPAN, maxSpan);
+        newSpan = TimelineUtils.clamp(newSpan, MIN_YEAR_SPAN, maxSpan);
 
         // 2. 计算双指中心点的移动（平移）
         const currentCenterX = (touches[0].clientX + touches[1].clientX) / 2;
@@ -1694,7 +1572,7 @@ class TimelineApp {
 
         // 限制最大缩放范围（不能小于当前时间轴总跨度）
         const maxSpan = this.maxYear - this.minYear;
-        newSpan = clamp(newSpan, MIN_YEAR_SPAN, maxSpan);
+        newSpan = TimelineUtils.clamp(newSpan, MIN_YEAR_SPAN, maxSpan);
 
         // 计算鼠标位置在视口中的比例（0到1之间）
         const ratio = mouseX / width;
@@ -1778,8 +1656,8 @@ class TimelineApp {
         }
 
         // 边界检查
-        start = clamp(start, this.minYear, this.maxYear);
-        end = clamp(end, this.minYear, this.maxYear);
+        start = TimelineUtils.clamp(start, this.minYear, this.maxYear);
+        end = TimelineUtils.clamp(end, this.minYear, this.maxYear);
 
         this.viewStart = start;
         this.viewEnd = end;
@@ -1799,14 +1677,14 @@ class TimelineApp {
         this.render();
 
         // 填充详情面板
-        document.getElementById('detailYear').textContent = this.getDetailedDateDesc(event);
+        document.getElementById('detailYear').textContent = TimelineUtils.date.getDetailedDateDesc(event);
         document.getElementById('detailTitle').textContent = event.title;
         document.getElementById('detailDesc').textContent = event.desc || '暂无简介';
         // 将换行符分隔的文本转换为段落 HTML，以便 CSS 控制段间距
         const detailText = event.detail || '暂无详细信息';
         // 先统一换行符为 \n，再分割
         const paragraphs = detailText.replace(/\r\n/g, '\n').split('\n').map(p => p.trim()).filter(p => p);
-        const detailHtml = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
+        const detailHtml = paragraphs.map(p => `<p>${TimelineUtils.dom.escapeHtml(p)}</p>`).join('');
         document.getElementById('detailContent').innerHTML = detailHtml;
         document.getElementById('detailTimeline').textContent = timeline.title;
         document.getElementById('detailTimeline').style.color = timeline.color;
@@ -1882,32 +1760,24 @@ class TimelineApp {
             return;
         }
 
-        let events = [];
-        if (eventsText) {
-            try {
-                events = JSON.parse(eventsText);
-            } catch (e) {
-                this.showToast('JSON格式错误：' + e.message);
-                return;
-            }
+        let normalized;
+        try {
+            normalized = TimelineUtils.data.normalizeTimeline({
+                id: this.editingId || 'timeline-' + Date.now(),
+                title, category, color,
+                events: eventsText ? JSON.parse(eventsText) : []
+            });
+        } catch (error) {
+            this.showToast('保存失败：' + error.message);
+            return;
         }
 
         if (this.editingId) {
             const timeline = this.timelines.find(t => t.id === this.editingId);
-            timeline.title = title;
-            timeline.category = category;
-            timeline.color = color;
-            timeline.events = events;
+            Object.assign(timeline, normalized);
         } else {
-            const newTimeline = {
-                id: 'timeline-' + Date.now(),
-                title,
-                category,
-                color,
-                events
-            };
-            this.timelines.push(newTimeline);
-            this.activeTimelines.add(newTimeline.id);
+            this.timelines.push(normalized);
+            this.activeTimelines.add(normalized.id);
         }
 
         this.closeModal();
@@ -2024,19 +1894,16 @@ class TimelineApp {
         }
 
         try {
-            const data = JSON.parse(text);
-            if (Array.isArray(data)) {
-                this.timelines = data;
-                this.activeTimelines.clear();
-                this.timelines.forEach(t => this.activeTimelines.add(t.id));
-                this.closeIOModal();
-                this.renderSidebar();
-                this.renderCategories();
-                this.resetView();
-                this.showToast('导入成功');
-            } else {
-                throw new Error('数据必须是数组格式');
-            }
+            // 全部校验成功后再替换，失败时保留原有数据。
+            const timelines = TimelineUtils.data.normalizeTimelines(JSON.parse(text));
+            this.timelines = timelines;
+            this.activeTimelines.clear();
+            this.timelines.forEach(t => this.activeTimelines.add(t.id));
+            this.closeIOModal();
+            this.renderSidebar();
+            this.renderCategories();
+            this.resetView();
+            this.showToast('导入成功');
         } catch (e) {
             this.showToast('导入失败：' + e.message);
         }
