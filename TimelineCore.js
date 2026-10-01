@@ -267,16 +267,60 @@ const TimelineUtils = {
          * @param {String} index[].eventPath 事件 JSON 文件路径
          * @param {String} [index[].color] 时间轴颜色
          * @param {String} [index[].category] 时间轴分类
-         * @returns {Promise<Timeline[]>} 加载并规范化后的时间轴数组，顺序与索引一致
-         * @throws {Error} 任一请求、解析或校验失败时拒绝 Promise
+         * @param {Function} [onIssue] 接收 error（跳过）或 warning（保留）及说明
+         * @returns {Promise<Timeline[]>} 非空时间轴数组，保持索引顺序
+         * @throws {Error} 索引不是数组
          */
-        async loadTimelines(index) {
-            const raw = await Promise.all(index.map(async meta => {
+        async loadTimelines(index, onIssue = () => {}) {
+            // 索引整体无效时交给调用方处理，单条错误则在下方隔离。
+            if (!Array.isArray(index)) throw new Error('时间轴索引必须是数组');
+
+            // 并行加载并等待全部结束；allSettled 保留每条结果，不因单条失败中断。
+            const results = await Promise.allSettled(index.map(async meta => {
+                if (!meta || typeof meta.eventPath !== 'string' || !meta.eventPath.trim()) {
+                    throw new Error('缺少事件文件路径');
+                }
                 const response = await fetch(meta.eventPath);
-                if (!response.ok) throw new Error(`加载失败：${meta.eventPath} (${response.status})`);
-                return { ...meta, events: await response.json() };
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                // 合并索引信息与事件 JSON，校验字段并转为模型；空轴按失败处理。
+                const timeline = TimelineUtils.data.normalizeTimeline({ ...meta, events: await response.json() });
+                if (!timeline.events.length) throw new Error('空时间轴');
+                return timeline;
             }));
-            return TimelineUtils.data.normalizeTimelines(raw);
+
+            const timelines = [], ids = new Set();
+            // 结果顺序与索引一致，不受请求完成先后影响。
+            results.forEach((result, i) => {
+                const meta = index[i];
+                const source = `${meta?.title || '未命名'} (${meta?.id || '无 ID'}, ${meta?.eventPath || '无路径'})`;
+                // 附上名称、ID 和路径报告失败，跳过该条并继续收集。
+                if (result.status === 'rejected') {
+                    onIssue('error', `已跳过时间轴：${source}：${result.reason?.message || result.reason}`);
+                    return;
+                }
+
+                // 重复 ID 只保留首条成功数据，避免选择和渲染时混淆。
+                const timeline = result.value;
+                if (ids.has(timeline.id)) {
+                    onIssue('error', `已跳过时间轴：${source}：时间轴 ID 重复`);
+                    return;
+                }
+                ids.add(timeline.id);
+                timelines.push(timeline);
+
+                // 按实际定位日期分组，月日正负号不影响重复判断。
+                const dates = new Map();
+                for (const event of timeline.events) {
+                    const date = TimelineUtils.date.getDecimalYear(event);
+                    if (!dates.has(date)) dates.set(date, []);
+                    dates.get(date).push(event.title);
+                }
+                // 同日期事件仅警告，列出标题供作者修正，不删除或移动事件。
+                for (const [date, titles] of dates) {
+                    if (titles.length > 1) onIssue('warning', `同日期事件：${source}，定位年份 ${date}：${titles.join('、')}`);
+                }
+            });
+            return timelines;
         }
     }
 };

@@ -60,7 +60,10 @@ test('现有四份 JSON 正常加载，顺序及日期位置不变，HTTP 失败
         });
     });
     context.fetch = async () => ({ ok: false, status: 404 });
-    await assert.rejects(utils.data.loadTimelines(index), /404/);
+    const issues = [];
+    assert.equal((await utils.data.loadTimelines(index, (type, message) => issues.push(message))).length, 0);
+    assert.equal(issues.length, 4);
+    assert.match(issues[0], /404/);
 });
 
 test('无效编辑和导入保留原数据，有效保存使用模型实例', () => {
@@ -143,4 +146,149 @@ test('未指定默认时间轴时完成初始化并渲染空状态', async () =>
     await app.init([]);
     assert.equal(app.activeTimelines.size, 0);
     assert.equal(counts().renders, 1);
+});
+
+test('加载跳过空轴，重复定位只警告且保留事件', async () => {
+    const warnings = [];
+    const events = [{ year: 2000, month: 6, title: '甲' },
+        { year: 2000, month: -6, title: '乙' }];
+    context.fetch = async file => ({ ok: true, json: async () => file === 'empty' ? [] : events });
+    const index = ['empty', 'one', 'two'].map(id => ({ id, title: id, eventPath: id }));
+    const timelines = await utils.data.loadTimelines(index, (...args) => warnings.push(args));
+    assert.equal(timelines.length, 2);
+    assert.equal(timelines[0].events.length, 2);
+    assert.deepEqual(warnings.map(w => w[0]), ['error', 'warning', 'warning']);
+    assert.match(warnings[1][1], /one.*甲、乙/);
+    assert.equal((await utils.data.loadTimelines(index.slice(0, 1))).length, 0);
+});
+
+function rangeApp(events = []) {
+    const app = new context.App();
+    app.timelines = [{ id: 'test', events }];
+    app.activeTimelines.add('test');
+    app.render = app.updateRangeSlider = () => {};
+    app.showToast = message => { app.message = message; };
+    return app;
+}
+
+test('单事件、同年及同日事件按实际日期居中，重置和拖动保留最小跨度', () => {
+    for (const events of [
+        [{ year: 2000, month: 6, title: '甲' }],
+        [{ year: 2000, month: 6 }, { year: 2000, month: -6 }],
+        [{ year: 2000, month: 1 }, { year: 2000, month: 12 }]
+    ]) {
+        const app = rangeApp(events);
+        app.resetView();
+        const dates = events.map(utils.date.getDecimalYear);
+        assert.ok(Math.abs((app.viewStart + app.viewEnd) / 2 -
+            (Math.min(...dates) + Math.max(...dates)) / 2) < 1e-9);
+        assert.ok(Math.abs(app.viewEnd - app.viewStart - 3) < 1e-9);
+        app.viewStart += 100; app.viewEnd += 100;
+        app.clampViewBounds();
+        assert.ok(app.viewStart >= app.minYear);
+        assert.ok(app.viewEnd <= app.maxYear + 1e-9);
+    }
+    const app = rangeApp([]);
+    app.resetView();
+    assert.ok(Number.isFinite(app.viewStart) && app.viewEnd - app.viewStart >= 3);
+    app.activeTimelines.clear();
+    app.resetView();
+    assert.ok(Number.isFinite(app.viewEnd) && app.viewEnd > app.viewStart);
+});
+
+test('输入范围交换、补足、整体限制边界并回填，非法输入不改视图', () => {
+    const app = rangeApp();
+    app.minYear = 1900; app.maxYear = 2100;
+    const nodes = {};
+    context.document = { getElementById: id => nodes[id] ||= { value: '', style: {} } };
+    app.updateRangeSlider = context.App.prototype.updateRangeSlider;
+    for (const [start, end, expectedStart, expectedEnd] of [
+        ['2005', '2000', 2000, 2005], ['2000', '2000', 2000, 2003],
+        ['2000.5', '2001', 2000.5, 2003.5], ['2200', '2201', 2097, 2100],
+        ['1800', '1801', 1900, 1903], ['1800', '2200', 1900, 2100]
+    ]) {
+        context.document.getElementById('viewStartInput').value = start;
+        context.document.getElementById('viewEndInput').value = end;
+        app.applyViewRange();
+        assert.equal(app.viewStart, expectedStart);
+        assert.equal(app.viewEnd, expectedEnd);
+        assert.equal(Number(nodes.viewStartInput.value), expectedStart);
+        assert.equal(Number(nodes.viewEndInput.value), expectedEnd);
+    }
+    for (const invalid of ['', ' ', '2000abc', 'Infinity']) {
+        nodes.viewStartInput.value = invalid; nodes.viewEndInput.value = '2000';
+        const before = [app.viewStart, app.viewEnd];
+        app.applyViewRange();
+        assert.deepEqual([app.viewStart, app.viewEnd], before);
+        assert.match(app.message, /有效/);
+    }
+});
+
+test('空轴错误写入控制台，Toast 仅汇总一次；同日事件只警告', async () => {
+    const app = rangeApp();
+    const errors = [], warnings = [], toasts = [];
+    context.console = { error: message => errors.push(message), warn: message => warnings.push(message) };
+    context.fetch = async file => ({ ok: true, json: async () => file === 'same' ?
+        [{ year: 2000, title: '甲' }, { year: 2000, title: '乙' }] : [] });
+    app.showToast = message => toasts.push(message);
+    await app.loadData(['empty1', 'empty2', 'same'].map(id => ({ id, title: id, eventPath: id })));
+    assert.equal(app.timelines.length, 1);
+    assert.equal(errors.length, 2);
+    assert.equal(warnings.length, 1);
+    assert.equal(toasts.length, 1);
+    assert.match(toasts[0], /跳过 2 条/);
+});
+
+
+test('混合加载隔离网络、HTTP、解析、字段、空轴和重复 ID 错误，保持索引顺序', async () => {
+    const issues = [];
+    let finishFirst;
+    context.fetch = async file => {
+        if (file === 'network') throw new Error('网络断开');
+        if (file === 'http') return { ok: false, status: 404 };
+        if (file === 'slow') await new Promise(resolve => { finishFirst = resolve; });
+        return { ok: true, json: async () => {
+            if (file === 'json') throw new SyntaxError('JSON 解析失败');
+            if (file === 'invalid') return [{ year: 'abc', title: '错误' }];
+            if (file === 'empty') return [];
+            return [{ year: 2000, title: file }];
+        } };
+    };
+    const paths = ['slow', 'network', 'http', 'json', 'invalid', 'empty', 'fast', 'duplicate'];
+    const index = paths.map(file => ({ id: file === 'duplicate' ? 'slow' : file,
+        title: file, eventPath: file }));
+    index.push(null);
+    const task = utils.data.loadTimelines(index, (type, message) => issues.push({ type, message }));
+    finishFirst();
+    const result = await task;
+    assert.deepEqual(Array.from(result, t => t.id), ['slow', 'fast']);
+    assert.equal(issues.length, 7);
+    assert.ok(issues.every(issue => issue.type === 'error'));
+    for (const text of ['网络断开', '404', 'JSON 解析失败', '年份', '空时间轴', 'ID 重复', '缺少事件文件路径']) {
+        assert.ok(issues.some(issue => issue.message.includes(text)), text);
+    }
+    assert.equal(result[0].events[0].title, 'slow');
+});
+
+test('同 ID 首条失败时可加载后续有效数据；全部失败仍完成初始化', async () => {
+    context.fetch = async file => ({ ok: file !== 'bad', status: 404,
+        json: async () => [{ year: 2000, title: '事件' }] });
+    const index = ['bad', 'good'].map(eventPath => ({ id: 'same', title: eventPath, eventPath }));
+    const result = await utils.data.loadTimelines(index);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].title, 'good');
+    assert.equal((await utils.data.loadTimelines([])).length, 0);
+    await assert.rejects(utils.data.loadTimelines(null), /索引必须是数组/);
+    const { env, app, counts } = createStartupFixture();
+    env.TimelineUtils = utils;
+    env.console = { error() {}, warn() {} };
+    app.loadData = env.App.prototype.loadData;
+    const messages = [];
+    app.showToast = message => messages.push(message);
+    await app.init(index.slice(0, 1), 'same');
+    assert.equal(app.timelines.length, 0);
+    assert.equal(app.activeTimelines.size, 0);
+    assert.equal(counts().renders, 1);
+    assert.equal(messages.length, 1);
+    assert.match(messages[0], /未加载到可用时间轴/);
 });

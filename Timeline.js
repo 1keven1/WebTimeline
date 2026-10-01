@@ -193,12 +193,21 @@ class TimelineApp {
     }
 
     /**
-     * 根据索引加载事件数据，失败向上传递，由启动入口统一处理
+     * 加载可用时间轴，逐条记录问题并汇总失败提示
      * @param {Object[]} timelineIndex 时间轴索引
      * @returns {Promise<void>} 数据加载任务
      */
     async loadData(timelineIndex) {
-        this.timelines = await TimelineUtils.data.loadTimelines(timelineIndex);
+        let failedCount = 0;
+        this.timelines = await TimelineUtils.data.loadTimelines(timelineIndex, (type, message) => {
+            if (type === 'error') {
+                failedCount++;
+                console.error(message);
+            } else console.warn(message);
+        });
+        if (failedCount) this.showToast(this.timelines.length
+            ? `已加载 ${this.timelines.length} 条时间轴，跳过 ${failedCount} 条，详见控制台`
+            : '未加载到可用时间轴，请检查控制台并修正后刷新');
     }
 
     /**
@@ -648,6 +657,8 @@ class TimelineApp {
             const totalSpan = this.maxYear - this.minYear;
             this.viewStart = this.minYear + (totalSpan * left / 100);
             this.viewEnd = this.minYear + (totalSpan * right / 100);
+            this.clampViewBounds();
+            this.updateRangeSlider();
 
             // 更新滑块上的年份标签（当前视口范围）
             document.getElementById('handleLeftLabel').textContent = Math.round(this.viewStart);
@@ -790,14 +801,9 @@ class TimelineApp {
      * 边界检查：确保视图范围在有效范围内
      */
     clampViewBounds() {
-        if (this.viewStart < this.minYear) {
-            this.viewEnd += this.minYear - this.viewStart;
-            this.viewStart = this.minYear;
-        }
-        if (this.viewEnd > this.maxYear) {
-            this.viewStart -= this.viewEnd - this.maxYear;
-            this.viewEnd = this.maxYear;
-        }
+        const span = TimelineUtils.clamp(this.viewEnd - this.viewStart, MIN_YEAR_SPAN, this.maxYear - this.minYear);
+        this.viewStart = TimelineUtils.clamp(this.viewStart, this.minYear, this.maxYear - span);
+        this.viewEnd = this.viewStart + span;
     }
 
     /**
@@ -866,7 +872,6 @@ class TimelineApp {
 
         // 在每个事件位置画时间点标记
         timeline.events.forEach(event => {
-            if (event.year < this.viewStart || event.year > this.viewEnd) return;
             // 获取小数年份（考虑月份和日期）
             const decimalYear = TimelineUtils.date.getDecimalYear(event);
             if (decimalYear < this.viewStart || decimalYear > this.viewEnd) return;
@@ -1272,8 +1277,9 @@ class TimelineApp {
                 .filter(t => this.activeTimelines.has(t.id))
                 .forEach(t => {
                     t.events.forEach(e => {
-                        if (e.year < newMin) newMin = e.year;
-                        if (e.year > newMax) newMax = e.year;
+                        const year = TimelineUtils.date.getDecimalYear(e);
+                        if (year < newMin) newMin = year;
+                        if (year > newMax) newMax = year;
                     });
                 });
             const newSpan = newMax - newMin;
@@ -1395,11 +1401,9 @@ class TimelineApp {
     }
 
     /**
-     * 更新Min year与Max year
+     * 按实际日期更新边界，至少保留最小跨度
      */
     updateMinMaxFromActiveTimelines() {
-        if (this.activeTimelines.size === 0) return;
-
         let min = Infinity;
         let max = -Infinity;
 
@@ -1407,19 +1411,25 @@ class TimelineApp {
             .filter(t => this.activeTimelines.has(t.id))
             .forEach(t => {
                 t.events.forEach(e => {
-                    if (e.year < min) min = e.year;
-                    if (e.year > max) max = e.year;
+                    const year = TimelineUtils.date.getDecimalYear(e);
+                    if (year < min) min = year;
+                    if (year > max) max = year;
                 });
             });
 
-        // 添加边距
-        const padding = (max - min) * PADDING_AMOUNT;
-        this.minYear = Math.floor(min - padding);
-        this.maxYear = Math.ceil(max + padding);
-
-        // 确保视图范围在值域内
-        this.viewStart = Math.max(this.minYear, this.viewStart);
-        this.viewEnd = Math.min(this.maxYear, this.viewEnd);
+        if (!Number.isFinite(min)) {
+            this.minYear = 0;
+            this.maxYear = 10000;
+        } else if (max - min < MIN_YEAR_SPAN) {
+            const center = (min + max) / 2;
+            this.minYear = center - MIN_YEAR_SPAN / 2;
+            this.maxYear = center + MIN_YEAR_SPAN / 2;
+        } else {
+            const padding = (max - min) * PADDING_AMOUNT;
+            this.minYear = Math.floor(min - padding);
+            this.maxYear = Math.ceil(max + padding);
+        }
+        this.clampViewBounds();
     }
 
     /**
@@ -1622,8 +1632,8 @@ class TimelineApp {
         const viewStartInput = document.getElementById('viewStartInput');
         const viewEndInput = document.getElementById('viewEndInput');
         if (viewStartInput && viewEndInput) {
-            viewStartInput.value = Math.round(this.viewStart);
-            viewEndInput.value = Math.round(this.viewEnd);
+            viewStartInput.value = this.viewStart;
+            viewEndInput.value = this.viewEnd;
         }
     }
 
@@ -1634,19 +1644,17 @@ class TimelineApp {
         const startInput = document.getElementById('viewStartInput');
         const endInput = document.getElementById('viewEndInput');
 
-        let start = parseInt(startInput.value);
-        let end = parseInt(endInput.value);
+        let start = Number(startInput.value);
+        let end = Number(endInput.value);
 
-        if (isNaN(start) || isNaN(end)) {
+        if (!startInput.value.trim() || !endInput.value.trim() ||
+            !Number.isFinite(start) || !Number.isFinite(end)) {
             this.showToast('请输入有效的年份');
             return;
         }
 
         // 确保起始小于结束
-        if (start >= end) {
-            this.showToast('起始年份必须小于结束年份');
-            return;
-        }
+        if (start > end) [start, end] = [end, start];
 
         // 限制最小跨度
         const span = end - start;
@@ -1655,12 +1663,9 @@ class TimelineApp {
             this.showToast(`视图范围至少${MIN_YEAR_SPAN}年，已自动调整`);
         }
 
-        // 边界检查
-        start = TimelineUtils.clamp(start, this.minYear, this.maxYear);
-        end = TimelineUtils.clamp(end, this.minYear, this.maxYear);
-
         this.viewStart = start;
         this.viewEnd = end;
+        this.clampViewBounds();
 
         this.updateRangeSlider();
         this.render();
@@ -1703,13 +1708,16 @@ class TimelineApp {
     }
 
     resetView() {
-        if (this.activeTimelines.size === 0) return;
-
         // 计算并设置视图范围
         this.updateMinMaxFromActiveTimelines();
         const margin = (this.maxYear - this.minYear) * VIEWPORT_MARGIN;
         this.viewStart = this.minYear + margin;
         this.viewEnd = this.maxYear - margin;
+        if (this.viewEnd - this.viewStart < MIN_YEAR_SPAN) {
+            this.viewStart = (this.minYear + this.maxYear - MIN_YEAR_SPAN) / 2;
+            this.viewEnd = this.viewStart + MIN_YEAR_SPAN;
+        }
+        this.clampViewBounds();
 
         this.updateRangeSlider();
         this.render();
